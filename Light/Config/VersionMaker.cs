@@ -10,7 +10,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 
-namespace Light.Components;
+namespace Light.Config;
 
 public class VersionMaker
 {

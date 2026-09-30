@@ -5,7 +5,7 @@ using System.Text.Json;
 using UnityEngine;
 using Light.Utilities;
 
-namespace Light.UI;
+namespace Light.Config;
 
 public static class Cursor
 {

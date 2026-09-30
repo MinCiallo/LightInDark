@@ -6,7 +6,7 @@ using LightInDark;
 
 using UnityEngine;
 
-namespace Light.Components;
+namespace Light.Config;
 
 public static class MainColor
 {

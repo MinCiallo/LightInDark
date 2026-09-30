@@ -5,9 +5,9 @@ using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
-using static Light.Components.MainColor;
+using static Light.Config.MainColor;
 
-namespace Light.Components;
+namespace Light.Config;
 
 public static class LightSettings
 {
