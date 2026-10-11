@@ -1,17 +1,3 @@
-// ═══════════════════════════════════════════════════════════════════════════
-//  ⚠️⚠️ 2026-10-11 **整个文件已被停用**（用户："你先把咱们现在的这份备份到 Patch/Unused 里面
-//      并且完全注释掉，然后，复制粘贴 NOS 的并且复制粘贴 NOS 的资源"）
-//
-//  · 备份：`Light\Patches\Unused\GameSettingMenuPatch.cs.bak`（86,478 字节，原样 ✓）
-//  · 停用方式：`#if false` 包住整个文件 ✓ —— 效果等于"全部注释掉" ✓，
-//    但**不需要**给 1838 行逐行加 `//` ✗（那样容易漏、也容易改坏 ✓），而且**一行就能恢复** ✓
-//  · 它原来干的活（原版规则菜单改造 / 克隆页签菜单 / 配置行铺设 / ChangeTab 接管 …）
-//    改由 **NOS 那套**（`Light\Patches\NosStyleTabPatch.cs` ✓ + `Light\Resources\GUI\` 里的 NOS 资源 ✓）承担 ✓
-//
-//  ⚠️ 引用点也已同步摘掉（否则编译不过 ✗）：
-//    `ConfigUIPanel.cs` 里对 `TickTabGuard()` / `SuppressNonModPagesNow()` 的两处调用 ✓
-// ═══════════════════════════════════════════════════════════════════════════
-#if false
 using System;
 using System.Collections.Generic;
 using HarmonyLib;
@@ -1160,6 +1146,69 @@ public static class GameSettingMenuPatch
     }
 
     /// <summary>
+    /// ★★ 2026-10-11 **真正的每帧驱动**（用户报的两条外泄的根治点 ✓✓）
+    ///
+    /// ═══════════════════════════════════════════════════════════════════════
+    /// 【为什么必须有它】`TickTabGuard` 的注释一直写着"由 `ConfigUIPanel.Refresh`（每帧都会跑）调用" ✗
+    ///   —— **那句话是错的** ✗✗。查遍全工程，`ConfigUIPanel.Refresh()` 只有两个调用点：
+    ///     · `ConfigRowPatches.cs:323` —— **行值变化时**（点 +/- 号）✗ 事件驱动
+    ///     · `ConfigUIPanel.cs:3430`  —— Build / Show 时 ✗
+    ///   没有任何每帧驱动 ✗ → 所谓"每帧守卫"**几乎从不运行** ✓✓
+    ///
+    ///   这一条同时解释了用户报的两个 bug：
+    ///     ① 点阵营页签 → 全程没人压制 → 原版设置外泄 ✓
+    ///     ② "**调职业最大数量时**……错位外泄" —— 因为点 +/- **正好**是唯一会触发 Refresh 的时机 ✓
+    ///        → 守卫**恰好在原版重排的中途**跑起来乱压 ✗ = 用户说的"错位" ✓✓
+    ///
+    /// 【为什么挂 `HudManager.Update`】它是工程里现成的"大厅里每帧都会跑"的钩子 ✓
+    ///   （`GameSettingMenu` 是**大厅**菜单 `PlayerOptionsMenu(Clone)` ✓，HudManager 一定在 ✓）
+    ///   而且状态差量：没漏时**一个字节都不写** ✓，开销可忽略 ✓
+    ///
+    /// 【与 TONE 的关系】TONE（`Patches\GameSettingMenuPatch.cs`）不需要这种守卫 ✓ ——
+    ///   它 `OnEnablePrefix` 直接 `return false` **接管**了原版 OnEnable ✓，原版压根没机会重新点亮 ✗
+    ///   我们走的是 A 方案（不换架构 ✓）→ 保留原版 OnEnable，但**每帧把不该亮的压回去** ✓✓
+    /// ═══════════════════════════════════════════════════════════════════════
+    /// </summary>
+    [HarmonyPatch(typeof(HudManager), nameof(HudManager.Update))]
+    public static class GameSettingMenuTickPatch
+    {
+        public static void Postfix()
+        {
+            try
+            {
+                if (_menuInstance == null) return;   // 菜单没开 → 什么都不做 ✓
+                TickTabGuard();
+            }
+            catch (Exception ex)
+            {
+                LightLogger.LogDebug($"[GameSettingMenuPatch.Tick] {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// ★ 照 TONE 的思路补的第二个入口（用户提示的第②处缺口 ✓）：
+    ///   原版 `OnEnable` 一跑就会把页签/内容**重新点亮** ✗ → 在它**之后**立刻再压一次 ✓
+    ///
+    ///   ⚠️ TONE 是 `OnEnablePrefix` **return false** 完全接管 ✗（那是"换架构"的大改 ✗）
+    ///      我们按 A 方案走 **Postfix**：让原版照跑，跑完我们把它压回去 ✓✓
+    /// </summary>
+    [HarmonyPatch(typeof(GameSettingMenu), nameof(GameSettingMenu.OnEnable))]
+    [HarmonyPostfix]
+    public static void OnEnablePostfix(GameSettingMenu __instance)
+    {
+        try
+        {
+            _menuInstance = __instance;
+            TickTabGuard();      // 原版刚点亮的东西 → 立刻压回去 ✓
+        }
+        catch (Exception ex)
+        {
+            LightLogger.LogWarning($"[GameSettingMenuPatch.OnEnablePostfix] {ex.Message}");
+        }
+    }
+
+    /// <summary>
     /// **每帧自愈：把"不该显示的另一页签"压回去** ✓✓
     ///
     /// ═══════════════════════════════════════════════════════════════════════
@@ -1184,8 +1233,22 @@ public static class GameSettingMenuPatch
             var menu = _menuInstance;
             if (menu == null) return;
 
+            // ★ 取证（前 3 次 ✓）：把守卫的每个输入打出来 ——
+            //   之前连改三轮都不知道"它到底跑没跑" ✗（查出来是**根本没每帧调用** ✗）
+            bool modActive = Light.UI.Config.ConfigUIPanel.ModTabActive;
+            if (_guardDiag < 3)
+            {
+                _guardDiag++;
+                var ma = menu.transform != null ? menu.transform.Find("MainArea") : null;
+                var curNow = _currentTab >= 0 && _currentTab < _tabMenus.Length ? _tabMenus[_currentTab] : null;
+                LightLogger.Log($"[GameSettingMenuPatch][守卫取证] menu=有 ModTabActive={modActive} " +
+                                $"currentTab={_currentTab} cur={((curNow != null) ? curNow.name : "无")} " +
+                                $"MainArea={((ma != null) ? $"有({ma.childCount} 个子物体)" : "没找到 ✗")} " +
+                                $"modPage={((_modPage != null) ? "有" : "无 ✗")}");
+            }
+
             // 只在"当前停在 MOD 页签"时守护 ✓ —— 原版页签当然要让它亮着 ✓
-            if (!Light.UI.Config.ConfigUIPanel.ModTabActive) return;
+            if (!modActive) return;
 
             int fixedCount = 0;
 
@@ -1200,9 +1263,13 @@ public static class GameSettingMenuPatch
             fixedCount += SuppressNonModPagesUnderMainArea(menu);
 
             // ① 三个原版页签一个都不该亮 ✓（我们有自己的 6 个克隆菜单 ✓）
-            fixedCount += HideIfActive(menu.PresetsTab?.gameObject, "PresetsTab");
-            fixedCount += HideIfActive(menu.GameSettingsTab?.gameObject, "GameSettingsTab");
-            fixedCount += HideIfActive(menu.RoleSettingsTab?.gameObject, "RoleSettingsTab");
+            //    ⚠️⚠️ 2026-10-11 **必须走书签登记** ✓✓（原来用的是裸 `HideIfActive` ✗）：
+            //       `HideIfActive` 只 `SetActive(false)` ✗，不告诉 `ConfigUIPanel` "这是我藏的" ✗
+            //       → 切回"游戏设置"页签时 `RestoreVanillaState()` 只还原**登记过的** ✗
+            //         → `GameSettingsTab` 永远回不来 = 用户报的"游戏设置一片空白" ✓✓
+            fixedCount += HideAndRemember(menu.PresetsTab?.gameObject, "PresetsTab");
+            fixedCount += HideAndRemember(menu.GameSettingsTab?.gameObject, "GameSettingsTab");
+            fixedCount += HideAndRemember(menu.RoleSettingsTab?.gameObject, "RoleSettingsTab");
 
             // ② 其它克隆菜单也不该亮 ✓（只留当前那个 ✓）
             var cur = _currentTab >= 0 && _currentTab < _tabMenus.Length ? _tabMenus[_currentTab] : null;
@@ -1259,29 +1326,61 @@ public static class GameSettingMenuPatch
             //        这样"游戏设置"永远不会被我们关掉 ✓）
             var cur = _currentTab >= 0 && _currentTab < _tabMenus.Length ? _tabMenus[_currentTab] : null;
 
+            // ★★ 2026-10-11 用户报「点阵营页签时原版设置会外泄」——**出口就在这个循环** ✓✓
+            //    上一版只认名字前缀 `LightTabMenu_` ✗ → 于是**别的**漏出来的对象
+            //    （原版职业设置那支、以及原版 `OpenMenu/OpenChancesTab` 事后点亮的任何东西 ✗）
+            //    全都不在名单里 → 一个都没压住 ✓✓
+            //    → 改成**按"该不该留"判定**（不再按名字猜 ✗）：
+            //        留 = 当前页签菜单自身、我们自己的页（`_modPage`）、以及**包含它们的祖先** ✓
+            //        其余只要还亮着 → 登记 + 关掉 ✓
+            //    ⚠️ 判定只发生在 **MOD 页签**上（`TickTabGuard` 的入口已经卡了 `ModTabActive` ✓）
+            //       → 原版"预设/游戏设置"页签上这套**根本不跑** ✓ 不会误伤 ✓
+            bool ShouldKeep(Transform child)
+            {
+                try
+                {
+                    if (cur != null && cur.transform != null)
+                    {
+                        if (cur.transform == child) return true;              // 当前页签菜单 ✓
+                        if (cur.transform.IsChildOf(child)) return true;      // 它的祖先 ✓
+                    }
+                    if (_modPage != null && _modPage.transform != null)
+                    {
+                        if (_modPage.transform == child) return true;         // 我们自己的页 ✓
+                        if (_modPage.transform.IsChildOf(child)) return true; // 它的祖先 ✓
+                    }
+                }
+                catch { }
+                return false;
+            }
+
             for (int i = 0; i < mainArea.childCount; i++)
             {
                 var child = mainArea.GetChild(i);
                 if (child == null) continue;
+                if (!child.gameObject.activeSelf) continue;      // 已经藏着 → 一个字节都不写 ✓
 
-                // ★ 只认我们自己克隆的页签菜单 ✓（原版页签名字不是这个前缀 ✓ → 绝不误伤 ✓）
-                if (!child.name.StartsWith("LightTabMenu_", StringComparison.Ordinal)) continue;
+                // 该留的（我们自己的页 / 当前页签菜单 / 它们的祖先）→ 绝不碰 ✓
+                if (ShouldKeep(child)) continue;
 
-                // 当前页签那一份要留着用 ✓
-                if (cur != null && child.gameObject == cur.gameObject) continue;
-
-                if (!child.gameObject.activeSelf) continue;
-
-                Light.UI.Config.ConfigUIPanel.RememberHiddenForRestore(child.gameObject);
-                child.gameObject.SetActive(false);
-                n++;
-
-                if (_suppressLogs < 8)
+                // ★ 例外：原版 `GameSettingsTab` / `PresetsTab` 这两支由 `TickTabGuard` 的
+                //   ①号规则**登记着**关 ✓（同一个书签表 ✓）→ 这里跳过，避免重复登记 ✓
+                if (_suppressLogs < 8 && child.name.StartsWith("LightTabMenu_", StringComparison.Ordinal))
                 {
                     _suppressLogs++;
                     LightLogger.Log($"[GameSettingMenuPatch] 关掉了没在用的页签菜单 '{child.name}' ✓" +
                                     "（它里面克隆自带的原版行会漏到别的页上 ✗）");
                 }
+                else if (_suppressLogs < 8)
+                {
+                    _suppressLogs++;
+                    LightLogger.Log($"[GameSettingMenuPatch] 关掉了 MainArea 下漏出来的 '{child.name}' ✓" +
+                                    "（点阵营页签时的原版设置外泄就是这个 ✗）");
+                }
+
+                Light.UI.Config.ConfigUIPanel.RememberHiddenForRestore(child.gameObject);
+                child.gameObject.SetActive(false);
+                n++;
             }
         }
         catch (Exception ex)
@@ -1292,6 +1391,9 @@ public static class GameSettingMenuPatch
     }
 
     private static int _suppressLogs;
+
+    /// <summary>守卫取证日志的次数（前 3 次 ✓，用来确认它真的被每帧调到了 ✓）</summary>
+    private static int _guardDiag;
 
     /// <summary>`GameSettingMenuPatch` 外部（`ConfigUIPanel.CleanCurrentHost` ✓）触发的"立刻压一次"</summary>
     internal static void SuppressNonModPagesNow()
@@ -1314,6 +1416,34 @@ public static class GameSettingMenuPatch
             if (!go.activeSelf) return 0;
             go.SetActive(false);
             LightLogger.LogDebug($"[GameSettingMenuPatch] 关掉了不该显示的 '{what}' ✓");
+            return 1;
+        }
+        catch { return 0; }
+    }
+
+    /// <summary>
+    /// 同 <see cref="HideIfActive"/>，但**登记书签** ✓ —— 切回原版页签时
+    /// `ConfigUIPanel.RestoreVanillaState()` 能把它原样放回来 ✓✓
+    ///
+    /// ⚠️ 2026-10-11 用户的"游戏设置一片空白"就是这个漏掉的登记造成的 ✗：
+    ///    压制时没登记 → 还原时还原不到 → 原版页签永远回不来 ✓
+    ///    凡是**可能还要还给原版**的对象，一律走这个 ✓；只有"我们自己造的临时壳"才用裸 HideIfActive ✓
+    /// </summary>
+    private static int HideAndRemember(GameObject? go, string what)
+    {
+        try
+        {
+            if (go == null) return 0;
+            if (!go.activeSelf) return 0;
+
+            Light.UI.Config.ConfigUIPanel.RememberHiddenForRestore(go);   // ★ 先登记再关 ✓
+            go.SetActive(false);
+
+            if (_suppressLogs < 8)
+            {
+                _suppressLogs++;
+                LightLogger.Log($"[GameSettingMenuPatch] 关掉了 '{what}' ✓（已登记，切回原版页签会还回来 ✓）");
+            }
             return 1;
         }
         catch { return 0; }
@@ -1849,5 +1979,41 @@ public static class GameSettingMenuPatch
             LightLogger.LogError("[GameSettingMenuPatch.SetButtonText]", ex);
         }
     }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  ★★★ 2026-10-11 **对外接口**（LID_EXTERNAL_TAB_API ✓）
+    //
+    //  用户："现在和页签共存，把游戏设置去掉，布个局，把这个内容塞到模组页签，
+    //        预设也删掉，放到预设页签。顺带，我希望外泄这么改会消失"
+    //
+    //  做法：本文件已经有现成的两页 ✓（`_modPage` / `_presetsPage` ✓，见 `BuildPages` ✓）
+    //        → 由**我们自己的页签栏**（`NovaTabBarPatch` ✓）来驱动它们 ✓，
+    //          而本文件**自己那排页签**（`CreateTabMenus` ✗）不再需要 ✓
+    //  参数：0 = 全藏（原版页 ✓）  1 = 显示 MOD 页 ✓  2 = 显示预设页 ✓
+    // ═══════════════════════════════════════════════════════════════════════
+    public static void LID_SetExternalTab(int which)
+    {
+        try
+        {
+            if (_modPage != null) _modPage.SetActive(which == 1);
+            if (_presetsPage != null) _presetsPage.SetActive(which == 2);
+            LightLogger.Log($"[GameSettingMenuPatch] 外部页签切换 → {which} ✓（MOD={which == 1} 预设={which == 2} ✓）");
+        }
+        catch (Exception ex) { LightLogger.LogWarning($"[GameSettingMenuPatch.LID_SetExternalTab] {ex.Message}"); }
+    }
+
+    /// <summary>本文件的页签页面是否已建好 ✓（我们的页签栏用它判断时机 ✓）</summary>
+    public static bool LID_PagesReady => _modPage != null || _presetsPage != null;
+
+    /// <summary>藏掉原版左栏 ✓（用户："我希望外泄这么改会消失" ✓ —— 那列按钮漏出来 ✓）</summary>
+    // 不要调这个 ✗：它会永久藏掉原版左栏（点回原版也不恢复 ✗，用户实测过 ✓）
+    public static void LID_HideVanillaLeftPanel(GameSettingMenu menu)
+    {
+        try
+        {
+            var lp = menu.transform.Find("LeftPanel");
+            if (lp != null && lp.gameObject.activeSelf) { lp.gameObject.SetActive(false); LightLogger.Log("[GameSettingMenuPatch] 原版左栏已藏 ✓（外泄修掉 ✓）"); }
+        }
+        catch (Exception ex) { LightLogger.LogWarning($"[GameSettingMenuPatch.LID_HideVanillaLeftPanel] {ex.Message}"); }
+    }
 }
-#endif

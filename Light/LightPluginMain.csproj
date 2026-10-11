@@ -43,9 +43,8 @@
 
         <Compile Remove="UI\Window\MetaUI.cs" />
         <Compile Remove="UI\Window\MetaScreen.cs" /><Compile Remove="UI\Window\Widgets.cs" /><Compile Remove="UI\Window\LIDGUI.cs" /><Compile Remove="UI\Window\GUIScrollView.cs" />
-        <!-- 2026-10-11 合并：这行"整体排除 NovaFull"已删除 ✓（它会让后面的 Include 失效 ✗） -->
         <Compile Remove="UI\Nova\**\*.cs" />
-        <EmbeddedResource Remove="Resources\NovaFull\**\*.*" />
+        
     </ItemGroup>
 
     <!--
@@ -91,33 +90,12 @@
 
 
 <Compile Remove="UI\Nova\**\*.cs" />
-        <!-- ═══════════════════════════════════════════════════════════════
-             ★★★ 2026-10-11 **NOS(Nova)UI 合并进主程序集** ✓✓
-             （用户："我们开始合并，反正之后我也要改里面布局，合并吧" ✓）
-
-             合并前的准备（已在 `Light.Nova` 沙箱里验证通过 ✓✓）：
-               Nova 那 234 个用裸 `Color` 的文件**逐个补了** `using Color = UnityEngine.Color;` ✓
-               然后才删掉 `Nebula.cs` 里的 `global using Color = UnityEngine.Color;` ✓
-               → 沙箱 `Light.Nova` 仍是 **0 错误** ✓（顺序反了就会炸成 12→2044 ✗）
-
-             ⚠️⚠️ **Nova 的 `Patches\` 只放行 UI 那两个文件** ✗：
-               主程序集用 `Harmony.PatchAll()` ✓（它扫**整个程序集**带 [HarmonyPatch] 的类 ✗）
-               → 若 Nova 的补丁全在，那几十个**游戏逻辑补丁**会全部生效 ✗✗
-               = 用户实测过的"**NOS 和 LID 一起强制运行**" ✓
-             → **整目录排除 ✓，再点名放行这两个 UI 补丁** ✓：
-                 · `Patches\Old\GameOptionPatch.cs`  ← 画页签 / 铺设置行 ✓
-                 · `Patches\Old\GameModePatch.cs`    ← 游戏模式页 ✓
-             ═══════════════════════════════════════════════════════════════ -->        <!-- ★ 语音聊天**不参与编译** ✗（照抄沙箱 `Light.Nova.csproj` 的验证结果 ✓）：
+        <!-- 2026-10-11 全删 Nova：只保留页签（NovaTabBarPatch ✓） -->        <!-- ★ 语音聊天**不参与编译** ✗（照抄沙箱 `Light.Nova.csproj` 的验证结果 ✓）：
              它依赖另一个模组 `Interstellar.dll` ✓，我们只提供垫片 ✓（`UI\NovaFull\InterstellarStub.cs` ✓）
              → 两边同时在 = CS0101 重复定义 ✗（实测 62 个错 ✓）
              `Ubiquitous.cs` 同理 ✓（它显式实现真实 Interstellar 接口，形状无法复刻 ✓） -->
-        <Compile Remove="UI\NovaFull\NebulaPluginNova\VoiceChat\**\*.cs" />
-        <Compile Remove="UI\NovaFull\NebulaPluginNova\Roles\Crewmate\Ubiquitous.cs" />
-
-        <Compile Remove="UI\NovaFull\NebulaPluginNova\Patches\**\*.cs" />
-        <!-- MERGE-REVERT 2026-10-11: nova merge caused 1536 duplicate-type errors (UnityHelper etc) -> keep 2 assemblies for now -->
-        <Compile Remove="UI\NovaFull\**\*.cs" />        <!-- ★ Nova 的编译符号（74 个 #if PC ✗ 不定义就少成员 ✓） -->
-        <!-- ★ 注意：**不要**写 <Compile Include="UI\NovaFull\**\*.cs" /> ✗ -->
+        <!-- MERGE-REVERT 2026-10-11: nova merge caused 1536 duplicate-type errors (UnityHelper etc) -> keep 2 assemblies for now -->        <!-- ★ Nova 的编译符号（74 个 #if PC ✗ 不定义就少成员 ✓） -->
+        <!-- ★ 注意：**不要**写 ✗ -->
         <!--   .NET SDK **默认就包含项目目录下的所有 .cs** ✓，再 Include 一次会报 NETSDK1022 重复 ✗
                  （这个错**不是** error CS / MSB / 而 是 error NETSDK ✓ —— 统计构建结果时必须连它一起数 ✗） -->
         <!-- Nova 源码自带 AssemblyInfo ✗ → 别让 SDK 再生成（否则 CS0579 重复 ✓） -->
@@ -188,11 +166,5 @@
 
 		<Message Importance="high" Text="[Output] Light.dll + LightInDark.dll → $(CustomOutDir)" />
 	</Target>
-    <!-- ★★ 2026-10-11 合并后必须在**属性组**里（放进 ItemGroup 会报 MSB4232 ✗） -->
-    <PropertyGroup>
-        <!-- Nova 代码里有 74 个 #if PC / 28 个 #if ANDROID，不定义就少一大堆成员 ✗ -->
-        <DefineConstants>$(DefineConstants);STEAM;PC</DefineConstants>
-        <!-- Nova 源码自带 AssemblyInfo ✗ → 别让 SDK 再生成（否则 CS0579 重复 ✓） -->
-        <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
-    </PropertyGroup>
+    
 </Project>

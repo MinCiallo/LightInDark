@@ -1,3 +1,4 @@
+using Light.UI.HudUI;
 using System;
 using System.Collections.Generic;
 using System.Reflection;
@@ -46,7 +47,7 @@ namespace Light.UI.NovaTabs;
 internal static class NovaTabBarPatch
 {
     /// <summary>★ 总开关：想回到"纯原版界面"就把它设 false ✓</summary>
-    private const bool Enable = false;   // ⚠️ 2026-10-11：Nova 自己的 GameSettingMenuStartPatch 已接管 ✓（见 Light.Nova.dll ✓）→ 我手写的这个让位 ✓
+    private const bool Enable = false;   // 2026-10-11 用户选 A ✓：留旧 GameSettingMenuPatch 自己那排彩边页签 ✓，我这排红框页签关掉 ✓
 
     private static GameSettingMenu? _menu;
 
@@ -91,22 +92,121 @@ internal static class NovaTabBarPatch
         // 页签挂在原版菜单下（跟着菜单一起显示/隐藏 ✓）
         var parent = menu.transform;
 
-        var backSprite = LoadSprite("Nova_TabBackground.png", 100f);
-        var iconSheet = LoadSprite("Nova_TabIcon.png", 100f);
-        if (backSprite == null) LightLogger.LogWarning("[NovaTabBar] 页签底图缺失（Nova_TabBackground.png）");
-        if (iconSheet == null) LightLogger.LogWarning("[NovaTabBar] 页签图标缺失（Nova_TabIcon.png）");
+        // ★ 2026-10-11 用户：「这个页签塑料感太重了。你改成三张纯图片吧，如果没图片就自绘一个边框加上字样」
+        //   实现（三步，从好到次 ✓）：
+        //     ① 三张纯图 `Resources\GUI\Nova_Tab1.png / Nova_Tab2.png / Nova_Tab3.png` ✓
+        //        —— 你把图放进去就自动用图 ✓，不用改代码 ✓
+        //     ② 没有图 → **自绘**：白框（`VanillaAsset.WhiteSprite` 拉成矩形 ✓ §4.3.3）+ 页签字样 ✓
+        //     ③ 不再用 Nova 那套"底图 + 6×1 图标切图" ✗（就是它导致塑料感重 ✓）
+        var fullTabs = new Sprite?[]
+        {
+            LoadSprite("Nova_Tab1.png", 100f),
+            LoadSprite("Nova_Tab2.png", 100f),
+            LoadSprite("Nova_Tab3.png", 100f),
+        };
+        bool useImages = fullTabs[0] != null && fullTabs[1] != null && fullTabs[2] != null;
+
+        Sprite? backSprite = null;
+        Sprite? iconSheet = null;
+        if (!useImages)
+        {
+            // 自绘模式：白色底图当"框" ✓（Sliced 拉成矩形 ✓），图标不画 ✓
+            try { backSprite = Light.UI.Window.VanillaAsset.WhiteSprite; } catch { }
+            if (backSprite == null) backSprite = LoadSprite("Nova_TabBackground.png", 100f);
+            LightLogger.Log("[NovaTabBar] 页签=自绘白框+字样 ✓（放 Nova_Tab1/2/3.png 到 Resources\\GUI 即可换成三张纯图 ✓）");
+        }
+        else LightLogger.Log("[NovaTabBar] 页签=三张纯图 ✓（Nova_Tab1/2/3.png ✓）");
 
         // ① 第 1 个 = 原版
-        AddTab(parent, backSprite, iconSheet, 0, "原版", isVanilla: true);
+        AddTab(parent, backSprite, iconSheet, 0, "原版", isVanilla: true, fullTab: fullTabs[0]);
         // ② 第 3 个 = 三号页签
-        AddTab(parent, backSprite, iconSheet, 1, "2 号页签", isVanilla: false);
-        AddTab(parent, backSprite, iconSheet, 2, "3 号页签", isVanilla: false);
+        AddTab(parent, backSprite, iconSheet, 1, "MOD", isVanilla: false, fullTab: fullTabs[1]);
+        AddTab(parent, backSprite, iconSheet, 2, "预设", isVanilla: false, fullTab: fullTabs[2]);
 
         RefreshSelection();
         LightLogger.Log($"[NovaTabBar] 已画 {_tabs.Count} 个页签 ✓（底图+图标切图来自 Nova 资源 ✓；默认选中第 1 个=原版 ✓）");
     }
 
-    private static void AddTab(Transform parent, Sprite? back, Sprite? sheet, int index, string label, bool isVanilla)
+    /// <summary>★ 2026-10-11 自绘**红色边框**（4 条细红条 ✓，中间透明 ✓ —— 用户：不要纯色方块 ✓）</summary>
+    private static void AddRedBorder(Transform parent, int layer, float w, float h)
+    {
+        var red = new Color(0.86f, 0.22f, 0.22f, 1f);
+        float t = 0.045f;   // 边框粗细 ✓
+        float[,] bars =
+        {
+            { 0f,  h * 0.5f, w, t },              // 上
+            { 0f, -h * 0.5f, w, t },              // 下
+            { -w * 0.5f, 0f, t, h + 0.01f },      // 左
+            {  w * 0.5f, 0f, t, h + 0.01f },      // 右
+        };
+        for (int i = 0; i < 4; i++)
+        {
+            var go = new GameObject("Border" + i);
+            go.transform.SetParent(parent, false);
+            go.layer = layer;
+            go.transform.localPosition = new Vector3(bars[i, 0], bars[i, 1], -0.08f);
+            var sr = go.AddComponent<SpriteRenderer>();
+            sr.sprite = Light.UI.Window.VanillaAsset.WhiteSprite;
+            sr.drawMode = SpriteDrawMode.Sliced;          // §4.3.3 ✓
+            sr.size = new Vector2(bars[i, 2], bars[i, 3]);
+            sr.color = red;
+        }
+    }
+
+    /// <summary>
+    /// ★ 2026-10-11 **我们自己的关闭按钮**（放左上角 ✓，和 NOS 一样 ✓）
+    /// 用户实证问题 ✗：切到 2/3 页签时原版关闭按钮**消失了** ✓
+    ///   —— 因为 `HideAllVanilla()` 把原版内容整个关掉 ✓（CloseButton 也在里面 ✗）
+    /// → 所以自建一个 ✓；它挂在菜单下、名字以 `NovaTab_` 开头 ✓
+    ///   → `HideAllVanilla` 的白名单会**跳过它** ✓（见那里的 StartsWith 判断 ✓），任何页签都在 ✓。
+    /// 点击 = 直接触发**原版**关闭按钮 ✓（最稳 ✓，不用自己写关闭逻辑 ✓）。
+    /// </summary>
+    private static void BuildCloseButton(Transform parent, int layer)
+    {
+        // ★★★ 2026-10-11 **照抄 NOS 的实现** ✓✓（用户："你就不能看看吗" ✓ —— 我去读了参考源码 ✓）
+        //   `NebulaPluginNova\Modules\MetaScreen.cs:1179 InstantiateCloseButton` ✓ 原文：
+        //       var collider = UnityHelper.CreateObject<CircleCollider2D>("CloseButton", parent, localPos);
+        //       collider.isTrigger = true;  collider.gameObject.layer = LayerExpansion.GetUILayer();
+        //       collider.radius = 0.25f;
+        //       renderer = collider.gameObject.AddComponent<SpriteRenderer>();
+        //       renderer.sprite = **VanillaAsset.CloseButtonSprite**;
+        //       var button = collider.gameObject.SetUpButton(true, renderer);
+        //   → 所以它**不是克隆原版按钮** ✗，而是"圆形碰撞 + 这个 sprite + SetUpButton" ✓
+        //   → 那个 sprite 我们工程**自己就有** ✓：`Light\UI\Window\VanillaAsset.cs:54 CloseButtonSprite` ✓
+        var go = new GameObject("NovaTab_Close");
+        go.transform.SetParent(parent, false);
+        go.layer = layer;
+
+        var col = go.AddComponent<CircleCollider2D>();   // NOS 用的是圆形碰撞 ✓
+        col.isTrigger = true;
+        col.radius = 0.25f;                              // NOS 的半径 ✓
+
+        var sr = go.AddComponent<SpriteRenderer>();
+        sr.sprite = Light.UI.Window.VanillaAsset.CloseButtonSprite;   // ★ NOS 同款 sprite ✓
+        sr.color = Color.white;
+
+        var button = go.SetUpButton(true, sr);   // NOS 的 SetUpButton(true, renderer) ✓
+        if (button != null)
+        {
+            button.OnClick = new UnityEngine.UI.Button.ButtonClickedEvent();   // §4.5：克隆/自建控件要**替换**而不是追加 ✓
+            button.OnClick.AddListener(Il2CppInterop.Runtime.DelegateSupport.ConvertDelegate<UnityEngine.Events.UnityAction>((System.Action)(() =>
+            {
+                try
+                {
+                    var close = FindChild(_menu != null ? _menu.transform : parent, "CloseButton");
+                    var pb = close != null ? close.GetComponent<PassiveButton>() : null;
+                    if (pb != null) { pb.OnClick.Invoke(); LightLogger.Log("[NovaTabBar] 关闭 ✓"); }
+                    else LightLogger.LogWarning("[NovaTabBar] 找不到原版 CloseButton ✗");
+                }
+                catch (Exception ex) { LightLogger.LogWarning($"[NovaTabBar] 关闭失败：{ex.Message}"); }
+            })));
+        }
+
+        go.transform.localPosition = new Vector3(-3.62f, 2.16f, -1f);   // 左上角 ✓（NOS 的位置 ✓）
+        go.transform.localScale = Vector3.one;
+        LightLogger.Log("[NovaTabBar] 关闭按钮已建 ✓（照抄 NOS：CircleCollider 0.25 + CloseButtonSprite + SetUpButton ✓）");
+    }
+    private static void AddTab(Transform parent, Sprite? back, Sprite? sheet, int index, string label, bool isVanilla, Sprite? fullTab = null)
     {
         var root = new GameObject($"NovaTab_{index}");
         root.transform.SetParent(parent, false);
@@ -122,11 +222,18 @@ internal static class NovaTabBarPatch
         bgGo.transform.SetParent(root.transform, false);
         bgGo.layer = layer;
         var bg = bgGo.AddComponent<SpriteRenderer>();
-        if (back != null)
+        if (fullTab != null)
         {
-            bg.sprite = back;
-            bg.drawMode = SpriteDrawMode.Sliced;      // §4.3.3：Sliced 能拉成任意矩形 ✓
+            // 三张纯图模式：整张图铺满页签 ✓
+            bg.sprite = fullTab;
+            bg.drawMode = SpriteDrawMode.Simple;
             bg.size = new Vector2(TabW, TabH);
+        }
+        else
+        {
+            // 2026-10-11 用户：不要纯色方块，一个红色边框就可以，字在里面
+            bg.enabled = false;
+            AddRedBorder(root.transform, layer, TabW, TabH);
         }
         bg.color = Color.white;
 
@@ -136,16 +243,16 @@ internal static class NovaTabBarPatch
         iconGo.layer = layer;
         iconGo.transform.localPosition = new Vector3(0f, 0f, -0.1f);
         var icon = iconGo.AddComponent<SpriteRenderer>();
-        icon.sprite = SliceSheet(sheet, index, 6);   // 见 SliceSheet 的 ppu（600 ✓ 图标才不会巨大 ✗）
+        icon.sprite = sheet != null ? SliceSheet(sheet, index, 6) : null;   // 自绘模式不画图标 ✓   // 见 SliceSheet 的 ppu（600 ✓ 图标才不会巨大 ✗）
         icon.color = Color.white;
 
         // 文字（底图上写名字 ✓ —— 本工程自建文字默认粗体 ✓ §12.1）
-        var tmp = MenuTextTemplate2.Create(root.transform, new Vector3(0f, -TabH * 0.5f - 0.12f, -0.2f), label, 1.3f, Color.white);
+        var tmp = MenuTextTemplate2.Create(root.transform, new Vector3(0f, 0f, -0.2f), label, 1.5f, Color.white);
         if (tmp != null)
         {
             tmp.alignment = TextAlignmentOptions.Center;
             tmp.enableAutoSizing = false;
-            tmp.fontSizeMin = 1.3f; tmp.fontSizeMax = 1.3f;
+            tmp.fontSizeMin = 1.5f; tmp.fontSizeMax = 1.5f;
             tmp.fontStyle = FontStyles.Bold;
             tmp.raycastTarget = false;
         }
@@ -178,7 +285,9 @@ internal static class NovaTabBarPatch
     {
         try
         {
-            var keep = new HashSet<string> { "Background", "PanelSprite", "starfield", "Overlay" };
+            // ★ 2026-10-11 用户红圈标出的就是**原版自带的关闭按钮** ✓（右上角那个 ✓）
+            //   → 正确做法不是自建 ✗，而是**别把它藏起来** ✓（它本身就是 NOS 同款 ✓）
+            var keep = new HashSet<string> { "Background", "PanelSprite", "starfield", "Overlay", "CloseButton" };
             var km = menu.transform;
             for (int i = 0; i < km.childCount; i++)
             {
@@ -207,7 +316,20 @@ internal static class NovaTabBarPatch
             if (menu == null) return;
 
             // ★★ 原版内容：**不在第 1 个页签上就全藏掉** ✓（用户："原版内容你倒是去掉啊" ✓）
-            HideAllVanilla(menu, hide: index != 0);
+            // ★★★ 2026-10-11 **改由旧 `GameSettingMenuPatch` 提供页面内容** ✓
+            //   它的 `BuildPages()` 已经建好两页 ✓（`_modPage` / `_presetsPage` ✓）
+            //   → 我们只负责"点页签 → 告诉它显示哪一页" ✓（`LID_SetExternalTab` ✓）
+            //   ⚠️ **不再** `HideAllVanilla` ✗ —— 它会把旧补丁的页面一起藏掉 ✗
+            //      （那两页是建在原版页层级里的 ✓，由它自己的 `ApplyModVisibility` 管显隐 ✓）
+            try
+            {
+                Light.Patches.GameSettingMenuPatch.LID_SetExternalTab(index == 0 ? 0 : (index == 1 ? 1 : 2));
+                // ⚠️ 2026-10-11 撤回：原来这里调 LID_HideVanillaLeftPanel ✗ —— 它藏了原版左栏却从不恢复 ✓
+                //   用户实测："点 MOD 左边页签按钮全消失，点回原版也消失" ✗ → 改成**不碰原版左栏** ✓
+            }
+            catch (Exception ex) { LightLogger.LogWarning($"[NovaTabBar] 联动旧补丁失败：{ex.Message}"); }
+            ClearRows();                 // 我画的东西一律清掉 ✓（页面内容由旧补丁画 ✓）
+            NovaModPage.Clear();   // ★ 两个都清 ✓（真 Destroy ✓）
 
             if (_tabs.Count > index && _tabs[index].IsVanilla)
             {
@@ -216,8 +338,9 @@ internal static class NovaTabBarPatch
             else
             {
                 // ★★ 接线：把**我们自己的数据**画上去 ✓
-                if (index == 1) ShowPresetPage(menu);        // 第 2 个页签 = 预设列表（我们的 PresetLibrary ✓）
-                else if (index == 2) ShowRolePage(menu);     // 第 3 个页签 = 职业列表（我们的 RoleRegistry ✓）
+                // ★★★ 2026-10-11 **测试页** ✓（用户："在里面赛一个 HudUI 按钮做测试，
+                //      点击弹窗口显示"测试"，布局啥的我们自己来" ✓）
+                // ★ 内容完全由旧 `GameSettingMenuPatch` 提供 ✓（上面已经 LID_SetExternalTab 切过去了 ✓）
 
                 LightLogger.Log($"[NovaTabBar] 切到第 {index + 1} 个页签（原版内容已清空 ✓）");
             }
@@ -263,6 +386,23 @@ internal static class NovaTabBarPatch
     }
 
     /// <summary>第 2 个页签：**预设列表**（直接读我们的 `PresetLibrary` ✓）</summary>
+    /// <summary>
+    /// ★★★ 2026-10-11 **测试页** ✓（用户："在里面赛一个 HudUI 按钮做测试，点击弹窗口显示"测试"，
+    ///      布局啥的我们自己来，所有 Nova 的只保留这玩意，剩下的删" ✓）
+    ///
+    /// Nova 已**全部删除** ✓（`Light\UI\NovaFull\` 758 个文件 + `Light.Nova\` 独立工程 + 30 MB 资源 ✓）
+    /// → 这一页是**唯一保留的界面内容** ✓，而且**不依赖 Nova** ✓（页签栏是我们自己用 `Nova_*.png` 画的 ✓）。
+    /// </summary>
+    private static void ShowTestPage(GameSettingMenu menu)
+    {
+        // ★★★ 2026-10-11 **改成临时布局** ✓（用户："按照原来那样的布局，结合NOS的布局，写一版临时布局，
+        //      可以引入NOS那些流畅的动画啥的，取其精华去其糟粕" ✓）
+        //   布局实现全部在 `NovaModPage.cs` 里 ✓（面板 + 左栏分类 + 右栏行 + 悬停/淡入动画 ✓）
+        ClearRows();                       // 先把旧的清掉 ✓（真 Destroy ✓）
+        NovaModPage.Clear();
+        NovaModPage.Show(menu);
+    }
+
     private static void ShowPresetPage(GameSettingMenu menu)
     {
         ClearRows();

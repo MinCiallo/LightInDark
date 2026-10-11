@@ -357,8 +357,6 @@ namespace Light.UI.Config
                 //     → `contentChanged` **每帧都为真** ✗ → `Inner` 每帧被归零 → 永远滚不动 ✓✓
                 //   ★ 所以这里**只负责范围（min/max）**，**绝不碰 `Inner` 位置** ✓
                 //     归零改到"换页/重开面板"时做（`ResetScrollToTop()` ✓），滚轮/拖动由原版全权处理 ✓
-                sb.UpdateScrollBars();   // 让原版按 min/max 决定 Toggle
-
                 // ★★ 2026-10-10 「还是无法滚动」的**根治** ✓✓：
                 //    原版 `Scroller` 滚的是**它自己的 `Inner`** ✓
                 //    （`ScrollRelative` → `Inner.localPosition` ✓，滚轮/拖动/滚动条最后都落到这一句 ✓）
@@ -367,13 +365,19 @@ namespace Light.UI.Config
                 //      "Scroller.Inner 指向了 'SliderInner'（已知坏容器），拒绝使用，退回自建容器" ✓
                 //       —— 拒绝是对的 ✓，但拒绝之后没把 `Inner` 改成我们的容器 ✗）
                 //    → 现在把 `Inner` 指向我们真正的行容器 ✓，之后滚轮/拖动/滚动条**全部交给原版** ✓
-                //      （离开页签时 `RestoreVanillaState()` 会还原 ✓）
-                if (_container != null && sb.Inner != _container)
-                {
-                    if (_originalInner == null) _originalInner = sb.Inner;   // 只记第一次的原值 ✓
-                    sb.Inner = _container;
-                    LightLogger.Log($"[ConfigUIPanel] Scroller.Inner → '{_container.name}' ✓（滚轮/拖动由此生效）");
-                }
+                //
+                // ⚠️⚠️ 2026-10-11 用户报「一滚就 NRE，也滚不动」——**顺序**和**死引用**两个坑 ✗✗：
+                //   ① 这段换绑原来写在 `UpdateScrollBars()` **之后** ✗
+                //      → 那一刻 `Inner` 还是旧的（可能已经死了）→ 原版 `Scroller.UpdateScrollBars`
+                //        （`Scroller.cs:310-324`）解引用 `this.Inner.transform` → **NRE** ✓✓
+                //   ② `RestoreVanillaState()` 会把 `Inner` **还原成克隆菜单的 'SliderInner'** ✓，
+                //      而那个对象随克隆菜单一起**被销毁** ✗ → `Inner` 变死引用（日志实证：
+                //      "滚动取证 … Inner=null ✗" ✓）→ 之后每帧 `UpdateScrollBars` 全炸 ✓
+                //   → 修法：**先换绑（并保证是活对象），再调 UpdateScrollBars** ✓✓
+                EnsureInnerAlive(sb);
+
+                if (sb.Inner != null) sb.UpdateScrollBars();   // 让原版按 min/max 决定 Toggle ✓
+                else LightLogger.LogWarning("[ConfigUIPanel] Scroller.Inner 仍是死的 → 跳过 UpdateScrollBars（避免原版 NRE）✗");
 
                 LightLogger.Log($"[ConfigUIPanel] 滚动条自动检测：内容高 {contentHeight:F2} / 可视高 {viewport:F2} " +
                                 $"→ {(needBar ? $"需要（溢出 {overflow:F2}）" : "不需要，已隐藏")}");
@@ -1143,7 +1147,14 @@ namespace Light.UI.Config
 
                 var host = _hostMenu ?? _templates;
                 var sb = host != null ? host.scrollBar : null;
-                if (sb != null && _originalInner != null)
+
+                // ★★ 2026-10-11 用户报「一滚就 NRE」——**还原这一句就是 NRE 源头** ✗✗：
+                //    `_originalInner` 是克隆菜单的 'SliderInner' ✓，而克隆菜单会被销毁 ✗
+                //    → 把它写回 `Inner` = 给原版 `Scroller` 留一个**死引用** ✓
+                //      → 之后每帧 `UpdateScrollBars()` 解引用 `this.Inner.transform` → NRE ✓✓
+                //    → 修法：**只在原值还活着时**才还原 ✓；
+                //      已经死了就**保持我们那个活容器**（或让 EnsureInnerAlive 接回菜单容器 ✓）✓
+                if (sb != null && _originalInner != null)      // ← `!= null` 会识别"已销毁" ✓（§4.6.1）
                 {
                     if (sb.Inner != _originalInner)
                     {
@@ -1151,6 +1162,16 @@ namespace Light.UI.Config
                         LightLogger.Log($"[ConfigUIPanel] 已把 Scroller.Inner 还原成 '{_originalInner.name}' ✓");
                     }
                     _originalInner = null;
+                }
+                else if (sb != null)
+                {
+                    // 原值已销毁（或本来就没记过）→ **绝不写死引用** ✓
+                    if (_originalInner != null)
+                    {
+                        LightLogger.Log("[ConfigUIPanel] Scroller.Inner 的原值已销毁 → 不还原（保持我们的活容器 ✓）");
+                        _originalInner = null;
+                    }
+                    EnsureInnerAlive(sb);
                 }
             }
             catch (Exception ex)
@@ -1161,6 +1182,54 @@ namespace Light.UI.Config
 
         /// <summary>`Scroller.Inner` 原本指向谁（我们要把它改成自建容器才能滚动 ✓，离开时还原 ✓）</summary>
         private static Transform? _originalInner;
+
+        /// <summary>
+        /// **保证 `Scroller.Inner` 是个活对象** ✓✓（2026-10-11 用户报「一滚就 NRE」的根治点之一 ✓）
+        ///
+        /// 原版 `Scroller.UpdateScrollBars`（`Scroller.cs:310-324`）与 `Scroller.Update`
+        /// 都会**无判空**地解引用 `this.Inner.transform` ✗ →
+        /// 只要 `Inner` 是 `null` 或**已销毁对象**，就会 NRE / 滚不动 ✓
+        ///
+        /// 所以每次刷新滚动范围之前都过一道：
+        ///   · 有自建容器 → 指向它 ✓（原值**只在校验还活着时**才记，免得记下死引用 ✗）
+        ///   · 没自建容器但 `Inner` 已死 → 接回菜单自带的容器（尽量不留下死引用 ✓）
+        /// </summary>
+        private static void EnsureInnerAlive(Scroller sb)
+        {
+            try
+            {
+                if (sb == null) return;
+
+                if (_container != null)
+                {
+                    if (sb.Inner == _container) return;
+
+                    // ⚠️ `!= null` 走 Unity 的 `==` 重载 → 已销毁的旧值会被识别成 null ✓（AGENTS §4.6.1）
+                    //    所以"死引用"不会被记进 `_originalInner` ✓（否则还原时又把死引用写回去 ✗）
+                    if (_originalInner == null && sb.Inner != null) _originalInner = sb.Inner;
+
+                    sb.Inner = _container;
+                    LightLogger.Log($"[ConfigUIPanel] Scroller.Inner → '{_container.name}' ✓（滚轮/拖动由此生效）");
+                    return;
+                }
+
+                // 没有自建容器：Inner 死了就得接一个活的，绝不留死引用 ✓
+                if (sb.Inner == null)
+                {
+                    var host = _hostMenu != null ? _hostMenu : _templates;
+                    var fallback = host != null ? host.settingsContainer : null;
+                    if (fallback != null)
+                    {
+                        sb.Inner = fallback;
+                        LightLogger.Log($"[ConfigUIPanel] Scroller.Inner 原本是死的 → 接回 '{fallback.name}' ✓");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                LightLogger.LogWarning($"[ConfigUIPanel.EnsureInnerAlive] {ex.Message}");
+            }
+        }
 
         // =====================================================================
         //  构建
@@ -2408,8 +2477,17 @@ namespace Light.UI.Config
                 //  ⚠️⚠️ 2026-10-11 **已摘掉**：整个 `GameSettingMenuPatch` 被停用 ✓
                 //     （用户："把咱们现在的这份备份到 Patch/Unused 里面并且完全注释掉，
                 //       然后复制粘贴 NOS 的"）→ 那套"每帧压页签"的逻辑随之停用 ✓
-                //     原来的调用留在这里做记录，改由 NOS 那套接管 ✓：
-                //   Light.Patches.GameSettingMenuPatch.TickTabGuard();
+                //
+                //  ★★★ 2026-10-11 晚 **重新接回来** ✓✓：
+                //     NOS 那套已整套删除（`Light\UI\NovaFull\` + `Light.Nova\` ✗），
+                //     现在生效的是**从 Unused 恢复的旧 `GameSettingMenuPatch`** ✓
+                //     → 它当初就是靠这个"每帧压页签"来治用户这两条外泄的 ✓：
+                //         · 点阵营页签时，原版设置外泄 ✗
+                //         · 调职业最大数量时，游戏设置与模组设置一起错位外泄 ✗
+                //     不接回来 = 原版事后 `OpenMenu/OpenChancesTab/OnEnable→Initialize`
+                //     把原版页签重新 `SetActive(true)` 时**没有任何人压制** ✗✗
+                //     （状态差量：没漏时一个字节都不写 ✓）
+                Light.Patches.GameSettingMenuPatch.TickTabGuard();
 
                 // ★★ 2026-10-10：泄漏取证（一次性，最多 3 次 ✓）——
                 //    把"当前 MOD 页签上**还激活**的原版选项行"是谁打印出来 ✓
