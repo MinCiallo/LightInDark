@@ -62,5 +62,10 @@ namespace LightInDark.UI.Ability
         /// <summary>创建会议右下角按钮（会议期间显示）。</summary>
         public static MeetingAbilityButton CreateMeetingAbility(RuntimeRoleTemplate role, RoleButtonConfig config, Action onClick)
             => MeetingAbilityButton.Create(role, config, onClick);
+
+        public static MeetingAbilityButton CreateMeetingAbility(RuntimeRoleTemplate role, RoleButtonConfig config,
+            Action onClick, MeetingCorner corner) => MeetingAbilityButton.Create(role, config, onClick, corner);
+        public static MeetingTargetButton CreateMeetingTarget(RuntimeRoleTemplate role, MeetingTargetButtonConfig config,
+            Action<MeetingHud, PlayerControl> onClick) => MeetingTargetButton.Create(role, config, onClick);
     }
 }

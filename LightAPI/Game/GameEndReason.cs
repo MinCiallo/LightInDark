@@ -62,7 +62,7 @@ namespace LightInDark.Game
             }
         }
 
-        public static bool IsCustomWin(GameEndReason reason) => reason == GameEndReason.CustomWin;
+        public static bool IsCustomWin(GameEndReason reason) => reason == GameEndReason.CustomWin || IsCustom(reason);
 
         /// <summary>判断结束原因是否来自模组扩展（自定义）。</summary>
         public static bool IsCustom(GameEndReason reason) => (int)reason >= (int)GameEndReason.CustomFirst;

@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><TargetFramework>net6.0</TargetFramework><LangVersion>latest</LangVersion><Nullable>disable</Nullable></PropertyGroup>
+  <ItemGroup>
+    <Reference Include="LightInDark"><HintPath>../../Output/LightInDark.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="../../Libs/*.dll" Exclude="../../Libs/LightInDark.dll;../../Libs/Light.dll;../../Libs/dobby.dll"><Private>false</Private></Reference>
+  </ItemGroup>
+</Project>

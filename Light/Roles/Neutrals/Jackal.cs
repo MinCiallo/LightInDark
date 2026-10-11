@@ -121,6 +121,7 @@ public class Jackal : RoleTemplate
             if (client == null || client.GameState != InnerNetClient.GameStates.Started) return false;
 
             if (RoleUtils.AliveImpostors().Any()) return false;
+            if (RoleUtils.AliveEvilNeutrals().Any(p => p.Role?.Role?.VictoryTeamCode != Code)) return false;
 
             int team = RoleTeam.Members(Code, true).Count();
             return team > 0 && team * 2 >= RoleUtils.AlivePlayers().Count();

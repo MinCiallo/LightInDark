@@ -19,7 +19,9 @@ namespace LightInDark.UI.Ability
     /// </summary>
     public class EffectButton : AbilityButton
     {
-        private float _effectTimer;
+        public AbilityTimer EffectTimer { get; } = new(0f);
+        public override IAbilityTimer CurrentTimer => _inEffect ? EffectTimer : CooldownTimer;
+        private float _effectTimer => EffectTimer.Remaining;
         private bool _inEffect;
 
         private static readonly UnityEngine.Color EffectColor = new(0f, 1f, 0f, 1f);
@@ -53,7 +55,7 @@ namespace LightInDark.UI.Ability
         public bool ShowEffectCountdown { get; set; } = true;
 
         protected EffectButton(RuntimeRoleTemplate role, Player player, RoleButtonConfig config, Action onClick)
-            : base(role, player, config, onClick) { }
+            : base(role, player, config, onClick) { EffectTimer.Completed += StopEffect; }
 
         /// <summary>创建持续按钮并注册到管理器。</summary>
         public static new EffectButton Create(RuntimeRoleTemplate role, RoleButtonConfig config, Action onClick)
@@ -76,10 +78,13 @@ namespace LightInDark.UI.Ability
             try
             {
                 if (IsBroken) return;
+                if (!CanAcceptInput || InputBlocked()) return;
+                if (_lastClickFrame == Time.frameCount) return;
 
                 // 效果持续中再次点击 → 取消效果（默认允许）
                 if (_inEffect && AllowCancelByReclick)
                 {
+                    _lastClickFrame = Time.frameCount;
                     StopEffect();
                     return;
                 }
@@ -101,7 +106,7 @@ namespace LightInDark.UI.Ability
 
                 // 效果中（且不允许重击取消）→ 仍然不能重复放技能 ✓
                 // （`ShouldBeUsable` 在效果中**恒为 true**（为了允许取消 ✓），所以这里必须再拦一道 ✓）
-                if (_inCooldown) return;
+                if (_inCooldown || _inEffect) return;
 
                 if (!_config.CanUse()) return;
                 if (HasLimitedUses && _usesLeft <= 0) return;
@@ -145,7 +150,8 @@ namespace LightInDark.UI.Ability
         {
             try
             {
-                _effectTimer = EffectDuration <= 0f ? float.MaxValue : EffectDuration;
+                EffectTimer.SetDuration(EffectDuration <= 0f ? float.MaxValue : EffectDuration);
+                EffectTimer.Start();
                 _inEffect = true;
                 _onEffectStart?.Invoke();
                 if (ShowEffectCountdown && EffectLabel != null)
@@ -164,7 +170,7 @@ namespace LightInDark.UI.Ability
             {
                 if (!_inEffect) return;
                 _inEffect = false;
-                _effectTimer = 0f;
+                EffectTimer.Stop();
                 _onEffectEnd?.Invoke();
                 if (ShowEffectCountdown && EffectLabel != null)
                 {
@@ -180,12 +186,13 @@ namespace LightInDark.UI.Ability
 
         public override void Update()
         {
-            if (IsDeadObject) return;
+            if (IsDeadObject || !HasUI) return;
+            if (_player == null || _player.IsDead) StopEffect();
             try
             {
                 if (_inEffect)
                 {
-                    _effectTimer -= Time.deltaTime;
+                    EffectTimer.Tick(Time.deltaTime);
 
                     if (EffectDuration > 0f && ShowEffectCountdown && EffectLabel != null)
                         _actionButton.buttonLabelText.text = Mathf.CeilToInt(_effectTimer).ToString();
@@ -217,9 +224,12 @@ namespace LightInDark.UI.Ability
                 //      期间 CD 永远停在原地，点击还能再触发一次 ✗✗
                 //    修法：效果期间**照常推进冷却** ✓（Nebula 里效果与冷却也是同一条计时链 ✓）
                 TickCooldown();
+                _config.OnUpdate?.Invoke(this);
                 Refresh();
 
                 UpdateHotkey();
+                UpdateSubHotkey();
+                UpdateMouseClick();
             }
             catch (Exception ex)
             {
@@ -284,6 +294,17 @@ namespace LightInDark.UI.Ability
 
         /// <summary>效果中始终可用（可取消）；否则看基础条件。</summary>
         protected override bool ShouldBeUsable
-            => !IsBroken && (_inEffect || (!_inCooldown && _config.CanUse() && (!HasLimitedUses || _usesLeft > 0)));
+            => !IsBroken && (_inEffect ? AllowCancelByReclick : (!_inCooldown && _config.CanUse() && (!HasLimitedUses || _usesLeft > 0)));
+
+        internal override void NotifyMeetingStarted()
+        {
+            if (_config.CancelEffectOnMeeting) StopEffect();
+            base.NotifyMeetingStarted();
+        }
+        public override void Release()
+        {
+            StopEffect();
+            base.Release();
+        }
     }
 }

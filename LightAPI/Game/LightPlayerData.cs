@@ -27,6 +27,7 @@ namespace LightInDark.Game
         public int ColorId { get; set; }
         public bool IsDead { get; set; }
         public bool Disconnected { get; set; }
+        public bool IsWinner { get; set; }
 
         // ── 职业信息 ──
         public string AssignedRoleName { get; set; } = "";
@@ -117,6 +118,7 @@ namespace LightInDark.Game
         public static bool CustomWin { get; set; }
         public static string CustomWinnerCode { get; set; } = "";
         public static string WinReason { get; set; } = "";
+        public static string GameModeId { get; set; } = "";
         public static DateTime GameStartTime { get; set; }
         public static bool IsLocalMode { get; set; }
         public static bool IsPracticeMode { get; set; }
@@ -396,6 +398,7 @@ namespace LightInDark.Game
                     : "平局";
                 sb.AppendLine($"结果: {winSide}  原因: {WinReason}");
                 sb.AppendLine($"会议轮数: {CurrentMeetingNumber}");
+                sb.AppendLine($"模式: {GameModeId}");
                 sb.AppendLine();
 
                 foreach (var data in AllPlayerData)
@@ -414,7 +417,7 @@ namespace LightInDark.Game
                         ? $" (原:{DisplayRole(data.AssignedRoleName)})"
                         : "";
 
-                    sb.AppendLine($"{data.PlayerName} | {role}{changeInfo} | {status}{taskInfo}");
+                    sb.AppendLine($"{data.PlayerName} | {role}{changeInfo} | {status}{taskInfo} | {(data.IsWinner ? "胜利" : "未获胜")}");
 
                     // 职业变化历史
                     foreach (var change in data.RoleHistory)

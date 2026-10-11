@@ -10,3 +10,6 @@ PYTHON="${PYTHON:-python3}"
 "$DOTNET" build VerificationServer/VerificationServer.csproj -c Release --nologo
 "$DOTNET" run --project Tests/Regression/Regression.csproj -- \
   VerificationServer/bin/Release/net10.0/LightVerificationServer.dll Output/Light.dll
+"$DOTNET" run --project Tests/Gameplay/Gameplay.csproj -- Output/LightInDark.dll
+"$DOTNET" run --project Tests/Rpc/Rpc.csproj
+"$DOTNET" build Tests/ApiConsumer/ApiConsumer.csproj -c Release --nologo

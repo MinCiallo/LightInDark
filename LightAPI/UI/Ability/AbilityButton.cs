@@ -103,10 +103,10 @@ namespace LightInDark.UI.Ability
             ApplyIcon(_config.Icon);
             string label = _config.ResolvedLabel;
             if (!string.IsNullOrEmpty(label)) _actionButton.OverrideText(label);
-            if (_config.Cooldown > 0f)
+            if (_config.Cooldown > 0f && _config.StartOnCooldown)
             {
                 // 初始为满冷却遮罩（数字+进度由 UpdateCooldownDisplay 每帧驱动）
-                _actionButton.SetCoolDown(_config.Cooldown, _config.Cooldown);
+                _actionButton.SetCoolDown(_cooldownTimer, _config.Cooldown);
             }
 
             // ★ 2026-10-06 用户报「冷却动画还是只在最后三秒转一下」→ **无条件**重算一次 UV ✓
