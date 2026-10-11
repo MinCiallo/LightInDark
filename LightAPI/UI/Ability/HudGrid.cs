@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using LightInDark.Events;
+using HarmonyLib;
 using UnityEngine;
 using Object = UnityEngine.Object;
 
@@ -39,18 +40,17 @@ namespace LightInDark.UI.Ability
         {
             try
             {
-                _holder = hud.UseButton.transform.parent;
-                _holder.localPosition = Vector3.zero;
-                _holder.name = "Buttons";
-
-                var holderObject = _holder.gameObject;
-                var arrange = holderObject.GetComponent<GridArrange>();
-                if (arrange != null) Object.Destroy(arrange);
-                var aspect = holderObject.GetComponent<AspectPosition>();
-                if (aspect != null) Object.Destroy(aspect);
+                // UseButton 的父级可能就是整个 HUD。只接管按钮，不归零或删除共享父级的锚点。
+                var vanillaParent = hud.UseButton.transform.parent;
+                var arrange = vanillaParent.GetComponent<GridArrange>();
+                if (arrange != null) arrange.enabled = false;
+                _holder = new GameObject("LightActionButtons").transform;
+                _holder.SetParent(hud.transform, false);
+                _holder.gameObject.layer = hud.UseButton.gameObject.layer;
 
                 _staticHolder = new GameObject("StaticButtons").transform;
-                _staticHolder.SetParent(_holder.parent, false);
+                _staticHolder.SetParent(hud.transform, false);
+                _staticHolder.gameObject.layer = _holder.gameObject.layer;
                 _staticHolder.localPosition = new Vector3(0f, 0f, -90f);
 
                 RegisterVanilla(hud.UseButton, 1000);
@@ -60,7 +60,7 @@ namespace LightInDark.UI.Ability
                 RegisterVanilla(hud.ImpostorVentButton, 997);
                 RegisterVanilla(hud.KillButton, -1, true);
             }
-            catch { }
+            catch (Exception ex) { Core.LightLogger.LogError("[HudGrid.Initialize]", ex); }
         }
 
         private void RegisterVanilla(Component button, int priority, bool asKillButton = false)
@@ -85,8 +85,11 @@ namespace LightInDark.UI.Ability
                 content.SetSide(toLeft);
                 content.UpdateSubPriority(_nextSubPriority++);
 
-                if (content.IsStaticContent && _staticHolder != null)
-                    content.Transform.SetParent(_staticHolder, true);
+                var parent = content.IsStaticContent ? _staticHolder : _holder;
+                if (parent != null) content.Transform.SetParent(parent, true);
+                // 只禁用被网格管理的按钮自身的布局驱动，保留 HUD/菜单的自适应布局。
+                var aspect = content.Transform.GetComponent<AspectPosition>();
+                if (aspect != null) aspect.enabled = false;
             }
             catch { }
         }
@@ -379,7 +382,7 @@ namespace LightInDark.UI.Ability
             {
                 _wasActive = true;
                 _placed = false;
-                CurrentPos = new Vector2(-1f, -1f);
+                // Layout 已在本帧分配了位置，不能在按钮重新显示时丢掉它。
             }
 
             if (CurrentPos.x < 0f) return;
@@ -391,14 +394,17 @@ namespace LightInDark.UI.Ability
             }
             else
             {
-                transform.localPosition += (TargetLocalPos - transform.localPosition) * (Time.deltaTime * FollowSpeed);
+                transform.localPosition += (TargetLocalPos - transform.localPosition) * Mathf.Clamp01(Time.deltaTime * FollowSpeed);
             }
         }
     }
 
+    [HarmonyPatch(typeof(HudManager), nameof(HudManager.Update))]
     internal static class HudGridTicker
     {
-        public static void OnHudUpdate(GameHudUpdateEvent ev)
+        // 大厅里的 Use/Pet 也需要布局；不能只依赖 Started 状态才派发的游戏事件。
+        [HarmonyPriority(Priority.Last)]
+        public static void Postfix()
         {
             HudGrid.Instance?.Tick();
         }

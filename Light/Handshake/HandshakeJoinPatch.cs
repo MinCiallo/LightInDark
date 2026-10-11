@@ -18,11 +18,17 @@ public static class HandshakeJoinPatch
             if (__instance == PlayerControl.LocalPlayer) return;   // 自己（房主/本人）不在这里触发
             if (AmongUsClient.Instance?.AmHost != true) return;    // 只有房主发挑战
             if (!HandshakeManager.IsEnabled) return;               // 握手未启用则不介入
-            HandshakeManager.OnPlayerJoined(__instance.PlayerId, __instance.Data?.PlayerName ?? "");
+            HandshakeManager.Tick();
         }
         catch (System.Exception ex)
         {
             LightLogger.LogError("[HandshakeJoinPatch.Postfix]", ex);
         }
     }
+}
+
+[HarmonyPatch(typeof(MainMenuManager), nameof(MainMenuManager.Start))]
+internal static class HandshakeResetPatch
+{
+    public static void Postfix() => HandshakeManager.Reset();
 }

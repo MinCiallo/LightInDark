@@ -21,8 +21,6 @@ namespace Light.UI.Replay;
 internal static class ReplayLobbyButton
 {
     private static GameObject? _btn;
-    private static Transform? _tplParent;      // 模板所在的父物体（用它保证坐标系/缩放一致 ✓）
-    private static float _tplZ = -50f;         // 模板的 z（已验证能显示的深度 ✓）
 
     /// <summary>进入大厅时创建（幂等 ✓）</summary>
     public static void Ensure()
@@ -57,8 +55,8 @@ internal static class ReplayLobbyButton
                 // 屏幕坐标 → 世界坐标（左上角：x 约 6% 处、y 约 93% 处 ✓）
                 float sx = Screen.width * 0.06f;
                 float sy = Screen.height * 0.93f;
-                var world = cam.ScreenToWorldPoint(new Vector3(sx, sy, Mathf.Abs(cam.transform.position.z) > 0.01f ? Mathf.Abs(cam.transform.position.z) : 10f));
-                world.z = 0f;   // 与相机同平面（z 交给 sorting ✓）
+                float depth = cam.WorldToScreenPoint(template.transform.position).z;
+                var world = cam.ScreenToWorldPoint(new Vector3(sx, sy, depth));
                 _btn.transform.position = world;
             }
             else
@@ -74,6 +72,7 @@ internal static class ReplayLobbyButton
             if (label != null)
             {
                 label.text = "复盘";
+                label.fontStyle = TMPro.FontStyles.Bold;
                 label.enableAutoSizing = false;
                 var tr = label.GetComponent<TextTranslatorTMP>();
                 if (tr != null) tr.enabled = false;      // 别让翻译器改回去 ✗（AGENTS §13.3 同款坑）
@@ -119,11 +118,8 @@ internal static class ReplayLobbyButton
     {
         try
         {
-            var ap = go.GetComponent<AspectPosition>();
-            if (ap != null) { ap.enabled = false; UnityEngine.Object.Destroy(ap); }
-
-            var apParent = go.GetComponentInParent<AspectPosition>();
-            if (apParent != null) apParent.enabled = false;   // 父物体上的也先关掉（我们已换父，双保险 ✓）
+            foreach (var ap in go.GetComponentsInChildren<AspectPosition>(true))
+                if (ap != null) { ap.enabled = false; UnityEngine.Object.Destroy(ap); }
 
             // ⚠️ 原版没有 `AspectScaler`（那是 nebula 的叫法 ✗）—— 原版是 `AspectSize`（AGENTS §4.4 第三类）
             var size = go.GetComponent<AspectSize>();
@@ -219,17 +215,29 @@ internal static class ReplayLobbyButton
 /// 进入大厅时创建按钮（`LobbyBehaviour.Start` 每次进大厅都会跑 ✓）。
 /// ⚠️ 类级 `[HarmonyPatch]` 必须写 —— 否则整个类被 Harmony 静默跳过 ✗（AGENTS §4.1）
 ///
-/// ⚠️ **不再额外 patch `LobbyBehaviour.OnDestroy` 去清理** ✗：
-///    那个方法在 IL2CPP 里不一定存在（patch 不到会白报一条错 ✗），而按钮挂在原版按钮的父物体下，
-///    会**跟着大厅一起销毁** ✓；`Ensure()` 里的 `if (_btn != null) return;` 用的是 Unity 的 `==` 重载
-///    （AGENTS §4.6.1）→ 已销毁对象会被识别成假 null ✓ → 下次进大厅自动重建 ✓（自愈 ✓）
+/// 按钮挂在 UI 相机下，由 HUD 更新和主菜单入口显式清理，避免相机复用时跨局残留。
 /// </summary>
-[HarmonyPatch(typeof(LobbyBehaviour), nameof(LobbyBehaviour.Start))]
+[HarmonyPatch]
 internal static class ReplayLobbyButtonPatch
 {
+    [HarmonyPatch(typeof(LobbyBehaviour), nameof(LobbyBehaviour.Start))]
+    [HarmonyPostfix]
     public static void Postfix()
     {
-        try { ReplayLobbyButton.Ensure(); }
+        try { ReplayLobbyButton.Destroy(); ReplayLobbyButton.Ensure(); }
         catch (Exception ex) { LightLogger.LogWarning($"[ReplayLobbyButtonPatch] {ex.Message}"); }
     }
+
+    [HarmonyPatch(typeof(HudManager), nameof(HudManager.Update))]
+    [HarmonyPostfix]
+    public static void UpdatePostfix()
+    {
+        var client = AmongUsClient.Instance;
+        if (client == null || client.GameState != InnerNet.InnerNetClient.GameStates.Joined)
+            ReplayLobbyButton.Destroy();
+    }
+
+    [HarmonyPatch(typeof(MainMenuManager), nameof(MainMenuManager.Start))]
+    [HarmonyPostfix]
+    public static void MainMenuPostfix() => ReplayLobbyButton.Destroy();
 }

@@ -32,6 +32,7 @@ namespace Light.UI.Config
         {
             try
             {
+                if (IsOurMenu(__instance)) return;
                 ConfigUIPanel.SetTemplateSource(__instance);
             }
             catch (Exception ex)
@@ -200,6 +201,9 @@ namespace Light.UI.Config
         {
             try
             {
+                // 克隆菜单只是滚动/遮罩宿主。配置由 Show/ShowRole 构建，
+                // 不允许 OnEnable/Initialize 在宿主登记之前铺入原版行或重建当前详情。
+                if (IsOurMenu(__instance)) return false;
                 ConfigUIPanel.SetTemplateSource(__instance);
 
                 if (!ConfigUIPanel.ShouldHandleCreateSettings(__instance))

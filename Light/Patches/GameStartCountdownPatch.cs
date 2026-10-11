@@ -52,6 +52,7 @@ public static class GameStartCountdownPatch
 
             // ---------- 取消按钮：红色，斜切左半（右下角向左缩） ----------
             _cancelButton = Object.Instantiate(__instance.StartButton, btnParent);
+            DisableCloneLayout(_cancelButton);
             var cancelLabel = _cancelButton.buttonText;
             if (cancelLabel != null)
             {
@@ -86,6 +87,7 @@ public static class GameStartCountdownPatch
 
             // ---------- 跳过按钮：淡金（ModGolden），斜切右半（左下角向左伸） ----------
             _skipButton = Object.Instantiate(__instance.StartButton, btnParent);
+            DisableCloneLayout(_skipButton);
             var skipLabel = _skipButton.buttonText;
             if (skipLabel != null)
             {
@@ -147,6 +149,15 @@ public static class GameStartCountdownPatch
         {
             LightLogger.LogError("[GameStartCountdownPatch.Start]", ex);
         }
+    }
+
+    private static void DisableCloneLayout(PassiveButton button)
+    {
+        // 克隆体会经历多次 SetActive；OnEnable 不能再按原版屏幕锚点覆盖位置。
+        foreach (var aspect in button.GetComponentsInChildren<AspectPosition>(true))
+            if (aspect != null) aspect.enabled = false;
+        foreach (var size in button.GetComponentsInChildren<AspectSize>(true))
+            if (size != null) size.enabled = false;
     }
 
     /// <summary>生成斜切按钮贴图：圆角矩形 + 斜向分割边（左块右下缩 / 右块左下伸）。</summary>
@@ -262,6 +273,12 @@ public static class GameStartCountdownPatch
             _cancelButton.gameObject.SetActive(counting);
             _skipButton.gameObject.SetActive(counting);
             __instance.StartButton.gameObject.SetActive(!counting);
+            // 开始按钮在 Start 之后仍可能经过屏幕适配；克隆体跟随当前布局，而非启动时快照。
+            var start = __instance.StartButton.transform;
+            _cancelButton.transform.localPosition = start.localPosition;
+            _skipButton.transform.localPosition = start.localPosition;
+            _cancelButton.transform.localScale = start.localScale;
+            _skipButton.transform.localScale = start.localScale;
 
             // 原版倒计时文本移到开始按钮上方（y 轴正方向）；结束时还原位置
             if (counting)

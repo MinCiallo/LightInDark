@@ -14,6 +14,16 @@ public static class HandshakeLobbyGatePatch
     // 是否由本补丁置灰了开始按钮（仅在这种情况下才负责恢复，避免覆盖原版自身的可用性判断）
     static bool _weDisabledButton;
 
+    // 先撤销本补丁上帧的禁用，再让原版 Update 重算人数等条件，不能在 Postfix 强行放行。
+    [HarmonyPatch(nameof(GameStartManager.Update))]
+    [HarmonyPrefix]
+    public static void UpdatePrefix(GameStartManager __instance)
+    {
+        if (!_weDisabledButton) return;
+        if (__instance.StartButton != null) __instance.StartButton.SetButtonEnableState(true);
+        _weDisabledButton = false;
+    }
+
     /// <summary>是否应阻止开始：有等待验证者始终阻止；未通过者仅在 Kick 模式下阻止（Warn 模式只提示、不拦开始）。</summary>
     static bool ShouldBlock()
     {
@@ -23,10 +33,12 @@ public static class HandshakeLobbyGatePatch
 
     [HarmonyPatch(nameof(GameStartManager.Update))]
     [HarmonyPostfix]
+    [HarmonyPriority(Priority.First)]
     public static void UpdatePostfix(GameStartManager __instance)
     {
         try
         {
+            HandshakeManager.Tick();
             if (AmongUsClient.Instance?.AmHost != true) return;
             if (!HandshakeManager.IsEnabled) return;
 
@@ -54,12 +66,6 @@ public static class HandshakeLobbyGatePatch
                     __instance.GameStartText.text = "正在等待玩家";
                 }
             }
-            else if (_weDisabledButton && __instance.StartButton != null)
-            {
-                // 只恢复"本补丁置灰"的按钮；文案交由原版刷新
-                __instance.StartButton.SetButtonEnableState(true);
-                _weDisabledButton = false;
-            }
         }
         catch (System.Exception ex)
         {
@@ -82,6 +88,7 @@ public static class HandshakeLobbyGatePatch
             {
                 __instance.StartButton.SetButtonEnableState(false);
                 __instance.StartButton.ChangeButtonText("正在等待玩家");
+                _weDisabledButton = true;
             }
             if (__instance.GameStartText != null)
             {

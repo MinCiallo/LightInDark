@@ -216,13 +216,13 @@ public static class DetailPopup
             if (cam == null) cam = Camera.main;
             if (cam == null) return false;
 
-            float z = Mathf.Abs(cam.transform.position.z);
-            if (z < 0.01f) z = 10f;
+            float refZ = GetReferenceWorldZ(anchor, _root!.transform.position.z) - 5f;
+            float z = cam.WorldToScreenPoint(new Vector3(0f, 0f, refZ)).z;
+            if (z <= 0f) return false;
             var world = cam.ScreenToWorldPoint(new Vector3(Input.mousePosition.x, Input.mousePosition.y, z));
 
             localPos = _parent.InverseTransformPoint(world);
             // z 沿用"锚点行的 z"（已被证明能显示的深度 ✓，前后交给 sortingOrder ✓）
-            localPos.z = anchor != null ? anchor.localPosition.z : localPos.z;
             return true;
         }
         catch (Exception ex)
@@ -357,6 +357,10 @@ public static class DetailPopup
 
     private static GameObject? _root;
     private static Transform? _parent;
+    private static Transform? _sourceParent;
+    private static Transform? _anchor;
+    private static bool _canPin;
+    private static int _updateFrame = -1;
     private static TextMeshPro? _text;
     private static Sprite? _fallbackWhite;                            // 自建 1×1 白图（自己持有，不会被场景切换带走）
     private static SpriteRenderer? _fill;
@@ -411,6 +415,7 @@ public static class DetailPopup
         try
         {
             if (string.IsNullOrWhiteSpace(text)) { Hide(); return; }
+            if (_pinned) return;
 
             var parent = anchor != null ? anchor.parent : null;
             if (parent == null)
@@ -420,6 +425,8 @@ public static class DetailPopup
 
             Ensure(parent, anchor);
             if (_root == null || _text == null) return;
+            _anchor = anchor;
+            _canPin = canPinByTab;
 
             // ① 每次显示都校验一次背景贴图：主菜单卸载后缓存的 WhiteSprite 会变成"假 null"，
             //    那样 SpriteRenderer 的 sprite 为空 → 框和背景整个不渲染（只有 TMP 文字还在）。
@@ -473,7 +480,7 @@ public static class DetailPopup
 
                 const float gap = 0.15f;      // Nebula 的 0.15 ✓
                 // 锚点 = 框的"靠近光标的那条边"（鼠标在左 → 框摆在光标右侧 → 锚点取左边界 ✓）
-                float anchorX = mouseOnLeft ? -boxW * 0.5f - gap : boxW * 0.5f + gap;
+                float anchorX = mouseOnLeft ? boxW * 0.5f + gap : -boxW * 0.5f - gap;
                 float anchorY = mouseOnLower ? boxH * 0.5f + gap : -boxH * 0.5f - gap;
 
                 pos = mousePos + new Vector3(anchorX, anchorY, 0f);
@@ -481,14 +488,12 @@ public static class DetailPopup
             else
             {
                 // 拿不到鼠标空间时退回老写法（挂在被悬浮行下面 ✓）
-                pos = anchor != null ? anchor.localPosition : Vector3.zero;
+                pos = anchor != null && _parent != null ? _parent.InverseTransformPoint(anchor.position) : Vector3.zero;
                 pos.y -= _boxHeight * 0.5f + 0.10f;
             }
 
-            pos.x = Mathf.Clamp(pos.x, -2.2f, 2.2f);       // 简单夹紧，别跑出面板
-            pos.y = Mathf.Clamp(pos.y, -2.4f, 2.4f);
-
             _root.transform.localPosition = pos;
+            ClampToViewport();
 
             // ⚠️⚠️ 2026-10-06 用户报「层级还是有问题」—— 日志实证根因在 **z**，不在排序号 ✗：
             //     [诊断] 参考行 : sorting=0(Default)/0    world=(…, …, **-910.00**)
@@ -534,8 +539,11 @@ public static class DetailPopup
     {
         try
         {
+            if (_updateFrame == Time.frameCount) return;
+            _updateFrame = Time.frameCount;
             if (_root == null || !_root.activeSelf) return;
-            if (!Input.GetKeyDown(KeyCode.Tab)) return;
+            if (_anchor == null || !_anchor.gameObject.activeInHierarchy) { Reset(); return; }
+            if (!_canPin || !Input.GetKeyDown(KeyCode.Tab)) return;
 
             _pinned = !_pinned;
             if (!_pinned && !_showing && _root != null)
@@ -556,6 +564,8 @@ public static class DetailPopup
         _showing = false;
         _pinned = false;
         _currentText = "";
+        _anchor = null;
+        _canPin = false;
         if (_root != null) _root.SetActive(false);
     }
 
@@ -563,11 +573,11 @@ public static class DetailPopup
 
     private static void Ensure(Transform parent, Transform? anchor)
     {
-        if (_root != null && _parent == parent) return;    // 已建好且父物体没变（Unity 假 null 会自动判为需要重建）
+        if (_root != null && _sourceParent == parent) return;
 
         Destroy();
 
-        _parent = parent;
+        _sourceParent = parent;
         _root = new GameObject("LightDetailPopup");
 
         // ★★ 照搬 Nebula `MouseOverPopup.Awake/SetWidgetOld`（`NebulaManager.cs:131`）：
@@ -575,9 +585,11 @@ public static class DetailPopup
         //    为什么必须这样：挂在被悬浮那一行的父物体下时，原版布局组件（`AspectPosition` 等）
         //    会**每帧**把位置算回去（AGENTS §4.4）→ 框"跟不动/位置乱跳" ✗
         //    （用户 2026-10-06 报的按钮重叠就是同一个坑 ✓）
-        var cam = FindUiCameraFor(parent);
+        var cam = FindUiCameraFor(anchor != null ? anchor : parent);
         if (cam != null) _root.transform.SetParent(cam.transform, false);
         else _root.transform.SetParent(parent);            // 找不到相机就退回原父物体 ✓
+        // 坐标必须相对于真正的父物体，不能仍使用原菜单行的父级。
+        _parent = _root.transform.parent;
 
         _root.transform.localScale = Vector3.one;
 
@@ -611,6 +623,21 @@ public static class DetailPopup
 
         _root.SetActive(false);
         LightLogger.Log($"[DetailPopup] 提示框已创建（灰底+淡金边框；文字来源={(_textSourceIsRowText ? "行内文字" : "统一文本模板")}）");
+    }
+
+    private static void ClampToViewport()
+    {
+        if (_root == null || _parent == null) return;
+        var cam = FindUiCameraFor(_root.transform);
+        if (cam == null) return;
+        float depth = cam.WorldToScreenPoint(_root.transform.position).z;
+        var min = _parent.InverseTransformPoint(cam.ViewportToWorldPoint(new Vector3(0.01f, 0.01f, depth)));
+        var max = _parent.InverseTransformPoint(cam.ViewportToWorldPoint(new Vector3(0.99f, 0.99f, depth)));
+        var pos = _root.transform.localPosition;
+        float halfW = _boxWidth * 0.5f, halfH = _boxHeight * 0.5f;
+        pos.x = max.x - min.x > _boxWidth ? Mathf.Clamp(pos.x, min.x + halfW, max.x - halfW) : (min.x + max.x) * 0.5f;
+        pos.y = max.y - min.y > _boxHeight ? Mathf.Clamp(pos.y, min.y + halfH, max.y - halfH) : (min.y + max.y) * 0.5f;
+        _root.transform.localPosition = pos;
     }
 
     private static bool _textSourceIsRowText;
@@ -1031,6 +1058,7 @@ public static class DetailPopup
 
         _root = null;
         _parent = null;
+        _sourceParent = null;
         _text = null;
         _fill = null;
         _top = null;

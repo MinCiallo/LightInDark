@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../LightAPI/UI/Ability/HudGrid.cs" Link="Production/HudGrid.cs" />
+    <Compile Include="../../LightAPI/Handshake/HandshakeCrypto.cs" Link="Production/HandshakeCrypto.cs" />
+    <Compile Include="../../Light/Handshake/HandshakeManager.cs" Link="Production/HandshakeManager.cs" />
+    <Compile Include="../../Light/Handshake/HandshakeModeOption.cs" Link="Production/HandshakeModeOption.cs" />
+    <Compile Include="../../Light/Handshake/HandshakeLobbyGatePatch.cs" Link="Production/HandshakeLobbyGatePatch.cs" />
+    <Compile Include="obj/ConfigMethods.g.cs" />
+    <Compile Include="obj/PopupMethods.g.cs" />
+    <Reference Include="Mono.Cecil"><HintPath>../../Libs/Mono.Cecil.dll</HintPath></Reference>
+  </ItemGroup>
+</Project>

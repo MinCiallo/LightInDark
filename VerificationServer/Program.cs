@@ -8,19 +8,19 @@ using System.Text.Json;
 // 用途：
 //   玩家客户端把 (version, apiHash, modHash, accountId) 发给本服务器，
 //   服务器核对是否与官方发布 hash 一致，一致则用 ECDSA P-256 私钥
-//   对票据内容签名并返回；房主用内置公钥验签，从而确认对方
-//   "是官方未篡改的客户端"。
+//   对票据内容签名并返回；房主用内置公钥校验票据与挑战、构建信息的一致性。
+//   hash 是客户端声明值，签名不能证明远端实际加载文件的完整性。
 //
 // 端点：
 //   GET  /health        存活检查
 //   GET  /pubkey        返回公钥 PEM（供编译进模组）
-//   POST /verify        票据签发 {version, apiHash, modHash, accountId}
+//   POST /verify        票据签发 {version, apiHash, modHash, accountId, nonce}
 //
 // 配置：
 //   首次运行自动生成 ECDSA P-256 密钥对（private.pem / public.pem）。
 //   官方 hash 列表放同目录 official.json：
 //     { "versions": [ { "version": "0.0.1", "apiHash": 123, "modHash": 456 } ] }
-//   票据有效期 24 小时（与客户端缓存一致）。
+//   票据有效期 24 小时；客户端仅为同一挑战缓存应答。
 // =====================================================================
 
 var builder = WebApplication.CreateBuilder(args);
@@ -44,6 +44,10 @@ else
     File.WriteAllText(privateKeyPath, ecdsa.ExportPkcs8PrivateKeyPem());
     File.WriteAllText(publicKeyPath, ecdsa.ExportSubjectPublicKeyInfoPem());
 }
+// 以实际加载的私钥为准，避免更换私钥或丢失 public.pem 后返回旧公钥。
+string publicKeyPem = ecdsa.ExportSubjectPublicKeyInfoPem();
+File.WriteAllText(publicKeyPath, publicKeyPem);
+var signingLock = new object();
 
 // ---------- 官方 hash 表 ----------
 string officialPath = Path.Combine(dataDir, "official.json");
@@ -58,7 +62,7 @@ OfficialHashes LoadOfficial()
 {
     try
     {
-        var doc = JsonDocument.Parse(File.ReadAllText(officialPath));
+        using var doc = JsonDocument.Parse(File.ReadAllText(officialPath));
         var list = new List<OfficialVersion>();
         foreach (var v in doc.RootElement.GetProperty("versions").EnumerateArray())
         {
@@ -115,7 +119,7 @@ static void WriteInt64(byte[] buf, ref int o, long v)
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok", time = DateTimeOffset.UtcNow.ToUnixTimeSeconds() }));
 
-app.MapGet("/pubkey", () => Results.Text(File.ReadAllText(publicKeyPath), "text/plain"));
+app.MapGet("/pubkey", () => Results.Text(publicKeyPem, "text/plain"));
 
 app.MapPost("/verify", (VerifyRequest req) =>
 {
@@ -142,7 +146,8 @@ app.MapPost("/verify", (VerifyRequest req) =>
     byte[] sig;
     try
     {
-        sig = ecdsa.SignData(payload, HashAlgorithmName.SHA256);
+        lock (signingLock)
+            sig = ecdsa.SignData(payload, HashAlgorithmName.SHA256, DSASignatureFormat.IeeeP1363FixedFieldConcatenation);
     }
     catch (Exception)
     {

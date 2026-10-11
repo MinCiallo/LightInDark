@@ -402,13 +402,20 @@ public static class GameSettingMenuPatch
     [HarmonyPostfix]
     public static void ClosePostfix()
     {
+        _menuInstance = null;
+        Light.UI.Config.ConfigUIPanel.ModTabActive = false;
+        Light.UI.Config.ConfigUIPanel.Clear();
+        Light.UI.Config.ConfigUIPanel.SetHostMenu(null);
         // 菜单销毁：清空引用，下次打开重新构建
         _presetsPage = null;
         _modPage = null;
         _modPlaceholderText = null;
         Instance = null;
-        for (int i = 0; i < _tabMenus.Length; i++) _tabMenus[i] = null;
-        Light.UI.Config.ConfigUIPanel.Clear();
+        for (int i = 0; i < _tabMenus.Length; i++)
+        {
+            if (_tabMenus[i] != null) Light.UI.Config.ConfigRowPatches.UnregisterOurMenu(_tabMenus[i]!);
+            _tabMenus[i] = null;
+        }
         Light.UI.Config.RoleListPage.Clear();
     }
 
@@ -1078,6 +1085,12 @@ public static class GameSettingMenuPatch
             // 只接管"真正的切换"；手柄预览态仍交回原版（TONE 也保留 previewOnly 分支）
             if (previewOnly) return true;
 
+            if (tabNum < 0 || tabNum >= VanillaTabs.Length) return false;
+            // 先还原旧页隐藏过的对象，再做本次互斥切换；否则 Clear 会重新点亮刚关掉的页。
+            Light.UI.Config.ConfigUIPanel.ModTabActive = false;
+            Light.UI.Config.ConfigUIPanel.Clear();
+            Light.UI.Config.RoleListPage.Clear();
+            Light.UI.Config.ConfigUIPanel.SetHostMenu(null);
             _currentTab = tabNum;
             _menuInstance = __instance;      // ★ 存下来给"每帧自愈"用（TickTabGuard ✓）
 
@@ -1111,8 +1124,8 @@ public static class GameSettingMenuPatch
                     var target = tabNum >= 0 && tabNum < _tabMenus.Length ? _tabMenus[tabNum] : null;
                     if (target != null)
                     {
-                        SetActiveSafe(target.gameObject, true);
                         Light.UI.Config.ConfigUIPanel.SetHostMenu(target);
+                        SetActiveSafe(target.gameObject, true);
 
                         // ⚠️ 每次切页签都要清一次原版内容（不能只依赖 Build）：
                         //    克隆菜单每次 SetActive(true) 都会走 OnEnable→Initialize，
@@ -1133,6 +1146,9 @@ public static class GameSettingMenuPatch
 
             // ⑤ 我们自己的内容与图标状态
             ShowTabConfig(tabNum);
+            if (Light.UI.Config.ConfigUIPanel.ModTabActive)
+                Light.UI.Config.ConfigUIPanel.CleanCurrentHost();
+            TickTabGuard();
             RefreshAllTabIcons();
             RefreshTabSelection();
 
@@ -1249,7 +1265,6 @@ public static class GameSettingMenuPatch
 
             // 只在"当前停在 MOD 页签"时守护 ✓ —— 原版页签当然要让它亮着 ✓
             if (!modActive) return;
-
             int fixedCount = 0;
 
             // ★★ 2026-10-10 用户："跟没修一样" —— 前三轮我都在猜"该关掉谁" ✗，全猜错 ✗✗
@@ -1502,6 +1517,10 @@ public static class GameSettingMenuPatch
             }
 
             var parent = source.transform.parent;
+            // 在禁用的父级下克隆，登记后才允许 OnEnable 运行。
+            var staging = new GameObject("LightTabStaging");
+            staging.SetActive(false);
+            staging.transform.SetParent(parent, false);
             int made = 0;
 
             for (int i = 0; i < VanillaTabs.Length; i++)
@@ -1509,7 +1528,7 @@ public static class GameSettingMenuPatch
                 // 预设 / 游戏设置用原版页，不克隆
                 if (i == TabPreset || i == TabGameSettings) continue;
 
-                var clone = Object.Instantiate(source, parent);
+                var clone = Object.Instantiate(source, staging.transform);
                 clone.gameObject.name = $"LightTabMenu_{VanillaTabs[i].Key}";
                 clone.gameObject.SetActive(false);
 
@@ -1517,11 +1536,13 @@ public static class GameSettingMenuPatch
                 //    否则 SetActive 切换会经 OnDisable/OnEnable 触发
                 //    ControllerManager 递归 → 栈溢出。
                 Light.UI.Config.ConfigRowPatches.RegisterOurMenu(clone);
+                clone.transform.SetParent(parent, false);
 
                 _tabMenus[i] = clone;
                 made++;
             }
 
+            Object.Destroy(staging);
             LightLogger.Log($"[GameSettingMenuPatch] 已为 {made} 个 MOD 页签克隆 GameOptionsMenu");
         }
         catch (Exception ex)
@@ -1821,6 +1842,7 @@ public static class GameSettingMenuPatch
         // 就地切换到该职业的配置页（返回按钮由 ConfigUIPanel.AddBackButton 画，
         // 它现在克隆的是原版 GameSettingMenu.BackButton）。
         Light.UI.Config.ConfigUIPanel.ShowRole(block, _modPage!.transform, OnRolePageBack);
+        TickTabGuard();
     }
 
     /// <summary>职业页点返回：回到职业列表（页签一直是显示的，不用恢复）。</summary>

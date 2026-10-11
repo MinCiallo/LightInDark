@@ -857,7 +857,7 @@ namespace Light.UI.Config
                     //
                     //    现在：返回按钮放高一点（用户圈的位置 ≈ 本地 y 1.05），
                     //    内容紧接在它下面开始。
-                    const float backY = 1.05f;
+                    const float backY = RoleBackY;
                     var roleTpl = RoleListPage.FindRole(_singleBlock);
 
                     if (!_hideBackButton) AddBackButton(backY);
@@ -1080,11 +1080,19 @@ namespace Light.UI.Config
         /// <summary>块是否通过当前分类过滤。</summary>
         private static bool MatchesFilter(ConfigBlock block)
         {
+            // 单职业详情在增量增删、重排、高度计算时必须使用同一范围。
+            if (_singleBlock != null) return ReferenceEquals(block, _singleBlock);
             if (_categoryFilter == null || _categoryFilter.Length == 0) return true;
             foreach (var c in _categoryFilter)
                 if (block.Category == c) return true;
             return false;
         }
+
+        private const float RoleBackY = 1.05f;
+
+        private static float ContentStartY(GameOptionsMenu? host)
+            => _singleBlock != null ? RoleBackY - BackBtnH - 0.14f
+                : host != null ? StartYFor(host) : StartY;
 
         /// <summary>清空重建（值变化导致可见性变化时调用）。</summary>
         public static void Rebuild(Transform parent)
@@ -2043,49 +2051,17 @@ namespace Light.UI.Config
             catch { }
         }
 
-        /// <summary>建一行配置项（克隆原版控件 + 合成 setting），返回下一个 y。</summary>
         /// <summary>
-        /// 禁掉该物体及最近 3 层祖先上的 <see cref="AspectPosition"/>。
-        ///
-        /// ⚠️⚠️ **原版设置行必须禁掉它**（2026-10-06 修"独立窗口里内容不跟着窗口走"）。
-        ///
-        ///  原版行是 <c>OptionBehaviour</c> 克隆体，**自带 <c>AspectPosition</c>** ——
-        ///  它每帧按**屏幕比例**重算**世界坐标**（`updateAlways`），所以我们把它挂到哪个
-        ///  父物体下都没用：它会被拽回"原版菜单里的那个屏幕位置"。
-        ///
-        ///  症状极具辨识度：**窗口框动了、里面的行纹丝不动** ——
-        ///  因为窗口是我们 `new` 的物体（跟着父物体走），行是原版克隆体（被 AspectPosition 拽住）。
-        ///
-        ///  为什么在原版容器里看不出问题：那时 AspectPosition 算出来的**就是**我们想要的位置
-        ///  （行本来就该在菜单里那个地方），所以一直没暴露。
-        ///
-        ///  我们的行位置全是自己算的（见 <c>ApplyRowLayout</c> / <c>Relayout</c>），
-        ///  所以**两种场合都该禁**。
-        ///  只往上查 3 层：再往上就是整个菜单的锚点，动它会破坏菜单自身的自适应。
-        ///  （同 <c>SettingsTabPatch.DisableAspectPosition</c>）
+        /// 行位置由本面板计算，禁用克隆体内的屏幕锚点，保留容器及菜单祖先的布局。
         /// </summary>
         private static void DisableAspectPositionOn(Transform? t)
         {
-            // ⚠️ **只在"行铺进我们自己的容器"时才禁**。
-            //
-            //  就地嵌入模式（默认）下，行还铺在**原版菜单的滚动容器**里 ——
-            //  那时 AspectPosition 算出来的**正好就是**我们想要的位置（我们那套
-            //  RowX / StartY / SpacingY 常量本来就是照原版 GameOptionsMenu.CreateSettings 抄的），
-            //  禁掉反而等于改了既有行为、有搞坏滚动/布局的风险。
-            //
-            //  只有独立窗口模式（_forceOwnContainer）才必须禁 —— 否则行会被拽回原版位置，
-            //  表现是"窗口框动了、里面的行纹丝不动"。
-            if (!_forceOwnContainer) return;
-
             try
             {
-                var cur = t;
-                for (int depth = 0; cur != null && depth < 3; depth++, cur = cur.parent)
-                {
-                    var ap = cur.GetComponent<AspectPosition>();
-                    if (ap == null || !ap.enabled) continue;
-                    ap.enabled = false;
-                }
+                if (t == null) return;
+                // 行的位置始终由本面板计算；仅处理克隆体，不触碰容器/菜单/HUD 祖先。
+                foreach (var ap in t.GetComponentsInChildren<AspectPosition>(true))
+                    if (ap != null) ap.enabled = false;
             }
             catch (Exception ex)
             {
@@ -2121,6 +2097,8 @@ namespace Light.UI.Config
 
                 var clone = Object.Instantiate(origin, Vector3.zero, Quaternion.identity, _container);
                 clone.gameObject.name = $"LightConfigRow_{item.Key}";
+                clone.gameObject.SetActive(false);
+                RowMap[clone.GetInstanceID()] = item;
                 _instantiated++;   // 诊断：本次会话一共实例化过多少行
 
                 // ⚠️⚠️ **原版行自带 AspectPosition，必须禁掉**（2026-10-06 修"窗口里内容不跟着走"）。
@@ -2167,14 +2145,14 @@ namespace Light.UI.Config
                 // 这里保留预制体自带缩放，只在它异常（0 或 1.0 明显不对）时才不动它。
                 // （不写任何 localScale 赋值 = 保留 Instantiate 出来的原值。）
 
-                clone.gameObject.SetActive(true);
                 _spawned.Add(clone.gameObject);
 
                 // 合成 setting 并交给原版初始化（这一步让原版部件全部就位）
                 var setting = BuildSetting(item);
                 if (setting != null)
                 {
-                    clone.SetClickMask(_templates.ButtonClickMask);
+                    var clickHost = _hostMenu != null ? _hostMenu : _templates;
+                    clone.SetClickMask(clickHost.ButtonClickMask);
                     clone.SetUpFromData(setting, MaskLayer);
                 }
                 else
@@ -2182,8 +2160,6 @@ namespace Light.UI.Config
                     LightLogger.LogWarning($"[ConfigUIPanel] {item.Key} 未能合成 BaseGameSetting");
                 }
 
-                // 登记：只用于我们自己的显示刷新与悬浮，不再靠它拦截原版逻辑
-                RowMap[clone.GetInstanceID()] = item;
 
                 // ⚠️ NRE 根因：原版 ToggleOption.Toggle() 最后一行是
                 //      this.OnValueChanged(this);
@@ -2240,6 +2216,8 @@ namespace Light.UI.Config
                 //   ⚠️ 给它一个**空的 OnClick**，这样它只负责"悬停"，
                 //      点击仍然由行自己的 +/- 按钮处理（PassiveButtonManager 不看 z，两个都会收到）。
                 AddHoverTrigger(clone, item);
+                // 所有绑定完成后才启用，Start/Initialize 必须能认出这是自定义行。
+                clone.gameObject.SetActive(true);
 
                 _rowCount++;
                 return y - SpacingY;
@@ -3092,7 +3070,7 @@ namespace Light.UI.Config
                 //   这正是用户报的"点击一次配置项后那块空缺又出现"，
                 //   在走增量路径（TryIncrementalVisibility → Relayout）时尤其明显。
                 var host = _hostMenu ?? _templates;
-                float y = host != null ? StartYFor(host) : StartY;
+                float y = ContentStartY(host);
                 foreach (var block in ConfigRegistry.Blocks)
                 {
                     if (block == null || !MatchesFilter(block)) continue;
@@ -3217,7 +3195,7 @@ namespace Light.UI.Config
                 var host = _hostMenu ?? _templates;
                 if (host != null)
                 {
-                    float startY = StartYFor(host);
+                    float startY = ContentStartY(host);
                     float lastY = LastRowY();      // Relayout 后的真实末尾
                     UpdateScrollBounds(host, startY, lastY);
                 }
@@ -3256,7 +3234,7 @@ namespace Light.UI.Config
         {
             // 同样必须带上地图预览的偏移，否则内容高度算少 0.60 → 滚动条判定不准
             var host = _hostMenu ?? _templates;
-            float y = host != null ? StartYFor(host) : StartY;
+            float y = ContentStartY(host);
             foreach (var block in ConfigRegistry.Blocks)
             {
                 if (block == null || !MatchesFilter(block)) continue;
