@@ -128,6 +128,12 @@ namespace LightInDark.Handshake
             out string accountId, out long exp,
             out int apiHash, out int modHash, out string version,
             out int nonce)
+            => TryParseWithKey(ticketBase64, expectedVersion, PublicKeyPem,
+                out accountId, out exp, out apiHash, out modHash, out version, out nonce);
+
+        // 参数化公钥用于独立协议回归测试；游戏入口始终固定使用上面的内置公钥。
+        internal static bool TryParseWithKey(string ticketBase64, string expectedVersion, string publicKeyPem,
+            out string accountId, out long exp, out int apiHash, out int modHash, out string version, out int nonce)
         {
             accountId = "";
             exp = 0;
@@ -137,28 +143,29 @@ namespace LightInDark.Handshake
             nonce = 0;
             try
             {
-                if (string.IsNullOrEmpty(ticketBase64)) return false;
+                if (string.IsNullOrEmpty(ticketBase64) || ticketBase64.Length > 244) return false;
 
                 byte[] raw = Convert.FromBase64String(ticketBase64);
-                if (raw.Length < 8 + 1 + 4 + 4 + 8) return false;
+                if (raw.Length < 86 || raw.Length > 182) return false;
 
                 int o = 0;
                 int accLen = raw[o++];
                 // accountId 之后至少还要有 verLen(1) + nonce(4) + apiHash(4) + modHash(4) + exp(8) + sig(64)
                 if (accLen > 64 || o + accLen > raw.Length - (1 + 4 + 4 + 4 + 8 + 64)) return false;
-                accountId = Encoding.UTF8.GetString(raw, o, accLen); o += accLen;
+                var utf8 = new UTF8Encoding(false, true);
+                accountId = utf8.GetString(raw, o, accLen); o += accLen;
 
                 int verLen = raw[o++];
-                if (verLen > 32 || o + verLen > raw.Length - (4 + 4 + 8 + 1)) return false;
-                version = Encoding.UTF8.GetString(raw, o, verLen); o += verLen;
+                if (verLen == 0 || verLen > 32 || o + verLen > raw.Length - (4 + 4 + 4 + 8 + 64)) return false;
+                version = utf8.GetString(raw, o, verLen); o += verLen;
 
                 nonce = ReadInt32(raw, ref o);
                 apiHash = ReadInt32(raw, ref o);
                 modHash = ReadInt32(raw, ref o);
                 exp = ReadInt64(raw, ref o);
 
-                if (!string.Equals(version, expectedVersion, StringComparison.Ordinal)) return false;
-                if (exp < DateTimeOffset.UtcNow.ToUnixTimeSeconds()) return false; // 过期
+                if (expectedVersion != null && !string.Equals(version, expectedVersion, StringComparison.Ordinal)) return false;
+                if (exp <= DateTimeOffset.UtcNow.ToUnixTimeSeconds()) return false;
 
                 int payloadLen = o;
                 int sigLen = raw.Length - payloadLen;
@@ -171,8 +178,12 @@ namespace LightInDark.Handshake
                 Array.Copy(raw, payloadLen, sig, 0, sigLen);
 
                 using var ecdsa = ECDsa.Create();
-                ecdsa.ImportFromPem(PublicKeyPem);
-                return ecdsa.VerifyData(payload, sig, HashAlgorithmName.SHA256);
+                ecdsa.ImportFromPem(publicKeyPem);
+                return ecdsa.VerifyData(payload, sig, HashAlgorithmName.SHA256, DSASignatureFormat.IeeeP1363FixedFieldConcatenation);
+            }
+            catch (Exception ex) when (ex is FormatException || ex is DecoderFallbackException || ex is ArgumentException)
+            {
+                return false; // 无效报文本身是验证结果，不应打印异常堆栈。
             }
             catch (Exception ex)
             {

@@ -364,22 +364,16 @@ public static class SettingsTabPatch
     }
 
     /// <summary>
-    /// 禁用该物体及最近几层祖先上的 <see cref="AspectPosition"/>。
+    /// 禁用页签自身及子物体上的 <see cref="AspectPosition"/>。
     /// 页签位置就是它按屏幕比例算的（两个菜单坐标不同即证据），不禁用则手动位置会被覆盖。
-    /// 只往上查 3 层：再往上就是整个菜单的锚点，动它会破坏菜单自身的自适应。
+    /// 保留祖先锚点，避免影响大厅/HUD 和菜单自身的自适应。
     /// </summary>
     private static void DisableAspectPosition(Transform t)
     {
         try
         {
-            var cur = t;
-            for (int depth = 0; cur != null && depth < 3; depth++, cur = cur.parent)
-            {
-                var ap = cur.GetComponent<AspectPosition>();
-                if (ap == null || !ap.enabled) continue;
-
-                ap.enabled = false;
-            }
+            foreach (var ap in t.GetComponentsInChildren<AspectPosition>(true))
+                if (ap != null) ap.enabled = false;
         }
         catch (Exception ex)
         {
@@ -548,6 +542,10 @@ public static class SettingsTabPatch
 [HarmonyPatch]
 internal static class DetailPopupDriverPatch
 {
+    [HarmonyPatch(typeof(HudManager), nameof(HudManager.Update))]
+    [HarmonyPostfix]
+    public static void HudUpdatePostfix() => UpdatePostfix();
+
     [HarmonyPatch(typeof(OptionsMenuBehaviour), nameof(OptionsMenuBehaviour.Update))]
     [HarmonyPostfix]
     public static void UpdatePostfix()

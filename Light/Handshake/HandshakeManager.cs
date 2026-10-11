@@ -8,6 +8,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Net.Http;
+using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -47,7 +48,15 @@ public static class HandshakeManager
     private static readonly HashSet<byte> _unverified = new();                // 未通过验证（红名 + 阻止开始）
     private static readonly Dictionary<byte, string> _names = new();          // playerId → 名字（提示用）
     private static readonly Dictionary<byte, UnityEngine.Color> _origNameColors = new(); // 未验证玩家的原名字色
-    private static bool _timeoutLoopRunning;
+    private static readonly Dictionary<byte, float> _retryTimes = new();
+    private static int _lobbyId = int.MinValue;
+    private static int _hostId = int.MinValue;
+    private static int _generation;
+    private static float _nextTick;
+    private static int? _clientNonce;
+    private static int _clientRequest;
+    private static bool _fetchingTicket;
+    private static string _clientTicket;
 
     /// <summary>握手是否启用：设置开关打开且验证服务器地址非空。</summary>
     public static bool IsEnabled =>
@@ -71,13 +80,12 @@ public static class HandshakeManager
         try
         {
             if (_initialized) return;
-            _initialized = true;
-
             (_localApiHash, _localModHash) = HandshakeCrypto.ComputeLocalHashes();
             LightLogger.Log($"[Handshake] 本地 hash: api={_localApiHash} mod={_localModHash} 版本={LightPlugin.Version}");
 
             CustomRPC.Register(ChallengeRpcHash, OnChallengeReceived);
             CustomRPC.Register(HandshakeRpcHash, OnHandshakeReceived);
+            _initialized = true;
         }
         catch (Exception ex)
         {
@@ -99,30 +107,22 @@ public static class HandshakeManager
             if (local == null) return;
             if (playerId == local.PlayerId) return; // 自己（房主）无需验证
             if (!IsEnabled) return; // 握手未启用
+            if (_pending.Contains(playerId) || _verified.Contains(playerId) || _unverified.Contains(playerId)) return;
 
             _names[playerId] = string.IsNullOrEmpty(playerName) ? $"P{playerId}" : playerName;
-            _joinTimes[playerId] = Time.time;
+            _joinTimes[playerId] = Time.realtimeSinceStartup;
             _verified.Remove(playerId);
             _unverified.Remove(playerId);
             _pending.Add(playerId); // 先记为等待验证，不红名、不算失败
 
-            int nonce = UnityEngine.Random.Range(int.MinValue, int.MaxValue);
+            int nonce = BitConverter.ToInt32(RandomNumberGenerator.GetBytes(4), 0);
             _issuedNonces[playerId] = nonce;
 
             // 广播挑战（不使用定向 RPC：新玩家刚加入时其 OwnerId 可能未就绪，定向发送会丢包）。
             // 客户端根据 playerId 判断是否自己的挑战。
-            CustomRPC.SendOnly(ChallengeRpcHash, w =>
-            {
-                w.Write(playerId);
-                w.Write(nonce);
-            }, reliable: true);
+            SendChallenge(playerId, nonce);
             LightLogger.LogDebug($"[Handshake] 已向 {_names[playerId]} 广播挑战 nonce={nonce}");
 
-            if (!_timeoutLoopRunning)
-            {
-                _timeoutLoopRunning = true;
-                Dispatcher.Instance?.StartCoroutine(CoTimeoutLoop().WrapToIl2Cpp());
-            }
         }
         catch (Exception ex)
         {
@@ -130,55 +130,82 @@ public static class HandshakeManager
         }
     }
 
-    /// <summary>超时兜底：加入后超过配置时限仍未握手 → 提示/踢出。同时清理已离开的玩家。</summary>
-    private static IEnumerator CoTimeoutLoop()
+    /// <summary>广播挑战并记录下次重试时间。</summary>
+    private static void SendChallenge(byte playerId, int nonce)
     {
-        while (_timeoutLoopRunning) // 常驻：保证玩家离开后仍能清理残留状态
+        CustomRPC.SendOnly(ChallengeRpcHash, w => { w.Write(playerId); w.Write(nonce); }, reliable: true);
+        _retryTimes[playerId] = Time.realtimeSinceStartup + 2f;
+    }
+
+    public static void Reset()
+    {
+        foreach (var pid in new List<byte>(_origNameColors.Keys)) RestoreNameColor(pid);
+        _pending.Clear();
+        _verified.Clear();
+        _unverified.Clear();
+        _issuedNonces.Clear();
+        _joinTimes.Clear();
+        _retryTimes.Clear();
+        _names.Clear();
+        _origNameColors.Clear();
+        _clientNonce = null;
+        _clientRequest++;
+        _fetchingTicket = false;
+        _clientTicket = null;
+        _generation++;
+        _lobbyId = int.MinValue;
+        _hostId = int.MinValue;
+        _nextTick = 0f;
+    }
+
+    // 大厅主线程驱动：兼顾加入早于 LocalPlayer 就绪、房主切换、开关变化及首包丢失。
+    public static void Tick()
+    {
+        try
         {
-            yield return new WaitForSeconds(1f);
-            try
+            var client = AmongUsClient.Instance;
+            if (client == null) { if (_lobbyId != int.MinValue) Reset(); return; }
+            if (_lobbyId != client.GameId || _hostId != client.HostId)
             {
-                if (AmongUsClient.Instance?.AmHost != true) continue;
-
-                float now = Time.time;
-                float timeout = Mathf.Clamp(LightPlugin.LightSettingsData?.HandshakeTimeoutSeconds ?? 10f, 1f, 60f);
-
-                foreach (var kv in new List<KeyValuePair<byte, float>>(_joinTimes))
-                {
-                    byte pid = kv.Key;
-                    if (_verified.Contains(pid)) { _joinTimes.Remove(pid); continue; }
-                    if (now - kv.Value < timeout) continue; // 窗口内不做任何判定
-
-                    _joinTimes.Remove(pid);
-                    _pending.Remove(pid);
-                    string name = _names.TryGetValue(pid, out var n) ? n : $"P{pid}";
-                    HandleMismatch(pid, name, MismatchKind.NoHandshake);
-                }
-
-                // 清理已离开玩家（等待/未通过记录），并恢复其名字颜色
-                foreach (var pid in new List<byte>(_pending))
-                {
-                    if (GetPlayerControl(pid) == null)
-                    {
-                        RestoreNameColor(pid);
-                        CleanupPlayer(pid);
-                    }
-                }
-                foreach (var pid in new List<byte>(_unverified))
-                {
-                    if (GetPlayerControl(pid) == null)
-                    {
-                        RestoreNameColor(pid);
-                        CleanupPlayer(pid);
-                        LightLogger.Log($"[Handshake] 玩家离开，清理 pid={pid}");
-                    }
-                }
+                Reset();
+                _lobbyId = client.GameId;
+                _hostId = client.HostId;
             }
-            catch (Exception ex)
+            if (!client.AmHost) return;
+            if (!IsEnabled)
             {
-                LightLogger.LogError("[HandshakeManager.CoTimeoutLoop]", ex);
+                if (_names.Count > 0) Reset();
+                return;
+            }
+            if (PlayerControl.LocalPlayer == null) return;
+            float now = Time.realtimeSinceStartup;
+            if (now < _nextTick) return;
+            _nextTick = now + 0.5f;
+            foreach (var pid in new List<byte>(_names.Keys))
+                if (GetPlayerControl(pid) == null) { RestoreNameColor(pid); CleanupPlayer(pid); }
+            foreach (var pc in PlayerControl.AllPlayerControls)
+                if (pc != null && pc != PlayerControl.LocalPlayer && pc.Data != null && !pc.Data.Disconnected)
+                    OnPlayerJoined(pc.PlayerId, pc.Data.PlayerName);
+            float timeout = Mathf.Clamp(LightPlugin.LightSettingsData?.HandshakeTimeoutSeconds ?? 10f, 1f, 60f);
+
+            foreach (var kv in new List<KeyValuePair<byte, float>>(_joinTimes))
+            {
+                byte pid = kv.Key;
+                if (_verified.Contains(pid)) { _joinTimes.Remove(pid); continue; }
+                if (now - kv.Value < timeout)
+                {
+                    if (_issuedNonces.TryGetValue(pid, out var nonce) &&
+                        (!_retryTimes.TryGetValue(pid, out var retryAt) || now >= retryAt)) SendChallenge(pid, nonce);
+                    continue;
+                }
+
+                _joinTimes.Remove(pid);
+                _pending.Remove(pid);
+                string name = _names.TryGetValue(pid, out var n) ? n : $"P{pid}";
+                HandleMismatch(pid, name, MismatchKind.NoHandshake);
             }
         }
+        catch (Exception ex) { LightLogger.LogError("[HandshakeManager.Tick]", ex); }
     }
 
     // =====================================================================
@@ -190,10 +217,11 @@ public static class HandshakeManager
         try
         {
             if (AmongUsClient.Instance?.AmHost == true) return; // 房主忽略自己的广播
+            Tick();
             var local = PlayerControl.LocalPlayer;
             if (local == null)
             {
-                LightLogger.LogWarning("[Handshake] 收到挑战时本地玩家未就绪，稍后由超时兜底");
+                LightLogger.LogWarning("[Handshake] 收到挑战时本地玩家未就绪，等待房主重试");
                 return;
             }
 
@@ -203,7 +231,7 @@ public static class HandshakeManager
             // 挑战必须来自房主：否则任意客户端都能广播假挑战，诱导本机用错误 nonce 应答后被房主误判
             byte sender = CustomRPC.CurrentSender;
             byte hostPid = GetHostPlayerId();
-            if (sender != byte.MaxValue && hostPid != byte.MaxValue && sender != hostPid)
+            if (sender == byte.MaxValue || hostPid == byte.MaxValue || sender != hostPid)
             {
                 LightLogger.LogWarning($"[Handshake] 忽略非房主发来的挑战（sender={sender}, host={hostPid}）");
                 return;
@@ -212,11 +240,28 @@ public static class HandshakeManager
             int nonce = reader.ReadInt32();
             LightLogger.LogDebug($"[Handshake] 收到房主挑战 nonce={nonce}");
 
-            if (!IsEnabled) return; // 握手未启用
+            // EnableHandshake 控制房主是否强制验证；普通客户端仍应响应可信房主。
+            string url = LightPlugin.LightSettingsData?.VerifyServerUrl;
+            if (string.IsNullOrWhiteSpace(url)) return;
+            if (_clientNonce == nonce)
+            {
+                if (_fetchingTicket) return;
+                if (!string.IsNullOrEmpty(_clientTicket)) { SendHandshake(_clientTicket); return; }
+            }
+            _clientNonce = nonce;
+            _clientTicket = null;
+            _fetchingTicket = true;
+            int request = ++_clientRequest;
+            int generation = _generation;
+            int lobbyId = _lobbyId;
+            int hostId = _hostId;
+            byte playerId = local.PlayerId;
+            // Unity/IL2CPP 对象只能在主线程读取；后台只处理 HTTP 和字符串。
+            string accountId = GetLocalAccountId();
+            var dispatcher = Dispatcher.Instance;
 
-            // 缓存票据仅用于服务器暂时不可达时的宽限；nonce 一次性，必须重新拉票。
-            string url = LightPlugin.LightSettingsData.VerifyServerUrl;
-            _ = Task.Run(() => FetchTicketAsync(url, nonce));
+            // 新 nonce 必须重新拉票；缓存只用于同一挑战的应答重传。
+            _ = FetchTicketAsync(url, nonce, accountId, request, generation, lobbyId, hostId, playerId, dispatcher);
         }
         catch (Exception ex)
         {
@@ -224,13 +269,13 @@ public static class HandshakeManager
         }
     }
 
-    private static async Task FetchTicketAsync(string url, int nonce)
+    private static async Task FetchTicketAsync(string url, int nonce, string accountId,
+        int request, int generation, int lobbyId, int hostId, byte playerId, Dispatcher dispatcher)
     {
         try
         {
             if (string.IsNullOrEmpty(url)) return;
 
-            string accountId = GetLocalAccountId();
             var payload = new
             {
                 version = LightPlugin.Version,
@@ -244,8 +289,8 @@ public static class HandshakeManager
             using var client = new HttpClient();
             client.Timeout = TimeSpan.FromSeconds(8);
             using var content = new StringContent(json, Encoding.UTF8, "application/json");
-            using var resp = await client.PostAsync(url.TrimEnd('/') + "/verify", content);
-            string body = await resp.Content.ReadAsStringAsync();
+            using var resp = await client.PostAsync(url.TrimEnd('/') + "/verify", content).ConfigureAwait(false);
+            string body = await resp.Content.ReadAsStringAsync().ConfigureAwait(false);
 
             if (!resp.IsSuccessStatusCode)
             {
@@ -267,12 +312,24 @@ public static class HandshakeManager
             LightLogger.Log($"[Handshake] 票据获取成功，exp={exp}");
 
             // 回到主线程发握手；票据随闭包传递，避免多挑战并发时被共享状态覆盖
-            Dispatcher.Instance?.Enqueue(() => SendHandshake(ticket));
+            dispatcher.Enqueue(() =>
+            {
+                var current = AmongUsClient.Instance;
+                var local = PlayerControl.LocalPlayer;
+                if (request != _clientRequest || generation != _generation || current == null || local == null ||
+                    current.GameId != lobbyId || current.HostId != hostId || local.PlayerId != playerId || current.AmHost) return;
+                _clientTicket = ticket;
+                SendHandshake(ticket);
+            });
         }
         catch (Exception ex)
         {
             LightLogger.LogWarning($"[Handshake] 获取票据失败: {ex.Message}");
             AbortHandshakeNoTicket("请求异常");
+        }
+        finally
+        {
+            dispatcher.Enqueue(() => { if (request == _clientRequest) _fetchingTicket = false; });
         }
     }
 
@@ -326,6 +383,7 @@ public static class HandshakeManager
         try
         {
             if (AmongUsClient.Instance?.AmHost != true) return;
+            if (!IsEnabled) return;
 
             byte playerId = reader.ReadByte();
             int apiHash = reader.ReadInt32();
@@ -334,18 +392,20 @@ public static class HandshakeManager
 
             // ⓪ 身份校验：报文自称的 playerId 必须等于真实发送者，防止冒用他人身份栽赃
             byte sender = CustomRPC.CurrentSender;
-            if (sender != byte.MaxValue && playerId != sender)
+            if (sender == byte.MaxValue || playerId != sender)
             {
                 LightLogger.LogWarning($"[Handshake] 报文 playerId={playerId} 与真实发送者 {sender} 不一致，忽略");
                 return;
             }
+            // 已完成或没有签发挑战的应答（包括可靠重传）不改变验证结果。
+            if (!_pending.Contains(playerId)) return;
 
             string name = GetPlayerName(playerId);
             _names[playerId] = name;
 
             // ① 票据签名 + 过期 + 版本（版本以本机模组版本为单一来源）
-            bool sigOk = HandshakeCrypto.TryParse(ticket, LightPlugin.Version,
-                out string ticketAccount, out _, out int tkApi, out int tkMod, out _, out int tkNonce);
+            bool sigOk = HandshakeCrypto.TryParse(ticket, null,
+                out string ticketAccount, out _, out int tkApi, out int tkMod, out var ticketVersion, out int tkNonce);
 
             if (!sigOk)
             {
@@ -359,10 +419,9 @@ public static class HandshakeManager
                 HandleMismatch(playerId, name, MismatchKind.Tampered);
                 return;
             }
-            _issuedNonces.Remove(playerId);
 
             // ③ 票据内 hash == 上报 hash == 房主本地 hash（版本一致性）
-            if (tkApi != apiHash || tkMod != modHash ||
+            if (ticketVersion != LightPlugin.Version || tkApi != apiHash || tkMod != modHash ||
                 apiHash != _localApiHash || modHash != _localModHash)
             {
                 HandleMismatch(playerId, name, MismatchKind.Version);
@@ -371,14 +430,15 @@ public static class HandshakeManager
 
             // ④ 票据 accountId == 该玩家 ClientData.ProductUserId（防借票）
             string realAccount = GetClientAccountId(playerId);
-            if (!string.IsNullOrEmpty(realAccount) && !string.IsNullOrEmpty(ticketAccount)
-                && realAccount != ticketAccount)
+            if (!string.IsNullOrEmpty(realAccount) && realAccount != ticketAccount)
             {
                 HandleMismatch(playerId, name, MismatchKind.Tampered);
                 return;
             }
 
             _verified.Add(playerId);
+            _issuedNonces.Remove(playerId);
+            _retryTimes.Remove(playerId);
             _joinTimes.Remove(playerId);
             _pending.Remove(playerId);     // 等待验证结束
             _unverified.Remove(playerId);  // 验证通过，解除红名/阻止开始
@@ -396,6 +456,9 @@ public static class HandshakeManager
         try
         {
             _joinTimes.Remove(playerId);
+            _pending.Remove(playerId);
+            _issuedNonces.Remove(playerId);
+            _retryTimes.Remove(playerId);
             _verified.Remove(playerId);
             _unverified.Add(playerId); // 不匹配：保持红名 + 阻止开始，直到离开
             SetNameRed(playerId);
@@ -423,7 +486,8 @@ public static class HandshakeManager
             if (mode == (int)HandshakeModeOption.Kick)
             {
                 Notify($"{msg} 将在3秒后执行踢出...");
-                Dispatcher.Instance?.StartCoroutine(CoKickAfter(playerId, 3f).WrapToIl2Cpp());
+                var pc = GetPlayerControl(playerId);
+                if (pc != null) Dispatcher.Instance.StartCoroutine(CoKickAfter(playerId, pc.NetId, _generation, 3f).WrapToIl2Cpp());
             }
             else
             {
@@ -436,13 +500,17 @@ public static class HandshakeManager
         }
     }
 
-    private static IEnumerator CoKickAfter(byte playerId, float delay)
+    private static IEnumerator CoKickAfter(byte playerId, uint netId, int generation, float delay)
     {
         yield return new WaitForSeconds(delay);
         try
         {
             // 延迟期间该玩家可能已离开 / 已通过验证 / PlayerId 被新玩家复用 → 踢前复检
-            if (!_unverified.Contains(playerId) || GetPlayerControl(playerId) == null) yield break;
+            var client = AmongUsClient.Instance;
+            var pc = GetPlayerControl(playerId);
+            if (generation != _generation || !IsEnabled || client == null || !client.AmHost ||
+                client.GameId != _lobbyId || client.HostId != _hostId || !_unverified.Contains(playerId) ||
+                pc == null || pc.NetId != netId) yield break;
             RpcDefinitions.KickPlayerWithReason(playerId, "模组版本不匹配或疑似被篡改");
         }
         catch (Exception ex)
@@ -459,9 +527,10 @@ public static class HandshakeManager
     {
         try
         {
-            if (HudManager.Instance?.Notifier != null)
+            var hud = HudManager.Instance;
+            if (hud != null && hud.Notifier != null)
             {
-                HudManager.Instance.Notifier.AddDisconnectMessage(message);
+                hud.Notifier.AddDisconnectMessage(message);
                 
             }
             else
@@ -500,8 +569,10 @@ public static class HandshakeManager
         {
             var target = GetPlayerControl(playerId);
             if (target == null) return "";
-            var cd = AmongUsClient.Instance?.GetClientFromCharacter(target);
-            return cd?.ProductUserId ?? "";
+            var client = AmongUsClient.Instance;
+            if (client == null) return "";
+            var cd = client.GetClientFromCharacter(target);
+            return cd != null ? cd.ProductUserId ?? "" : "";
         }
         catch { return ""; }
     }
@@ -511,7 +582,7 @@ public static class HandshakeManager
         try
         {
             foreach (var pc in PlayerControl.AllPlayerControls)
-                if (pc.PlayerId == playerId)
+                if (pc != null && pc.PlayerId == playerId)
                     return pc;
         }
         catch { }
@@ -523,8 +594,10 @@ public static class HandshakeManager
     {
         try
         {
-            var client = AmongUsClient.Instance?.GetClient(AmongUsClient.Instance.HostId);
-            if (client?.Character != null) return client.Character.PlayerId;
+            var client = AmongUsClient.Instance;
+            if (client == null) return byte.MaxValue;
+            var host = client.GetClient(client.HostId);
+            if (host != null && host.Character != null) return host.Character.PlayerId;
         }
         catch { }
         return byte.MaxValue;
@@ -568,7 +641,7 @@ public static class HandshakeManager
         {
             if (!_origNameColors.TryGetValue(playerId, out var orig)) return;
             var pc = GetPlayerControl(playerId);
-            if (pc?.cosmetics != null)
+            if (pc != null && pc.cosmetics != null)
                 pc.cosmetics.SetNameColor(orig);
             _origNameColors.Remove(playerId);
         }
@@ -586,6 +659,7 @@ public static class HandshakeManager
         _verified.Remove(playerId);
         _joinTimes.Remove(playerId);
         _issuedNonces.Remove(playerId);
+        _retryTimes.Remove(playerId);
         _names.Remove(playerId);
         _origNameColors.Remove(playerId);
     }

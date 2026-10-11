@@ -20,7 +20,8 @@ public static class Cursor
     {
         try
         {
-            SetCursorIndex(DefaultCursorIndex);
+            int savedIndex = LoadIndexFromJson();
+            SetCursorIndex(savedIndex >= 0 && savedIndex <= 2 ? savedIndex : DefaultCursorIndex);
             
         }
         catch (Exception ex)
