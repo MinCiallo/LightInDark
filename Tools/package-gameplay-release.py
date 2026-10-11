@@ -25,7 +25,7 @@ def unified(before, after, source, target):
 
 base = git("rev-parse", "HEAD").decode().strip()
 patch = b""
-tracked = [p for p in git("diff", "--ignore-space-at-eol", "--numstat").decode().splitlines()
+tracked = [p for p in git("diff", "--ignore-space-at-eol", "--numstat", "-z").decode().split("\0") if p
            if p.split("\t")[:2] != ["0", "0"]]
 changed = [p.split("\t", 2)[2] for p in tracked]
 for name in changed:
@@ -59,7 +59,7 @@ for name in ("Light.dll", "LightInDark.dll"):
     files[name] = {"bytes": len(data), "sha256": hashlib.sha256(data).hexdigest(),
                    "md5": hashlib.md5(data).hexdigest()}
 manifest = {"baseCommit": base, "configuration": "Release", "files": files,
-            "sourceFiles": sorted(set(changed)), "note": "Includes prior workspace fixes; originals are preserved."}
+            "sourceFiles": sorted(set(changed)), "note": "Replay changes.patch on baseCommit; originals are preserved."}
 (destination / "release-manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2)+"\n")
 if (root / "Output/official.generated.json").exists():
     shutil.copy2(root / "Output/official.generated.json", destination / "official.generated.json")

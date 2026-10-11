@@ -12,4 +12,6 @@ PYTHON="${PYTHON:-python3}"
   VerificationServer/bin/Release/net10.0/LightVerificationServer.dll Output/Light.dll
 "$DOTNET" run --project Tests/Gameplay/Gameplay.csproj -- Output/LightInDark.dll
 "$DOTNET" run --project Tests/Rpc/Rpc.csproj
+"$DOTNET" run --project Tests/Lobby/Lobby.csproj -c Debug -- Output/Light.dll
+"$DOTNET" run --project Tests/Lobby/Lobby.csproj -c Release -- Output/Light.dll
 "$DOTNET" build Tests/ApiConsumer/ApiConsumer.csproj -c Release --nologo

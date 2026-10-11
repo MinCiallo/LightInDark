@@ -80,6 +80,10 @@ GameModeRegistry.Register(new GameModeDefinition(
 
 模式 ID 必须唯一；分配器实现公开 `IRoleAllocator`。注册后自动进入模式选择项。`GameModeManager.Select(id)` 只允许房主在局外操作；开局前房主同步模式并重置结果，回合开始后冻结模式。`OnStarted/OnEnded` 是模式生命周期回调，`GameModeManager.Current` 返回当前定义。标准与自由模式固定在列表首部，扩展模式按 ID 排序。
 
+`MinimumPlayers` 支持 0～15；自由模式与 NOS 一致使用 0，避免单人时触发原版“人数恰好等于下限”的警告，开始仍要求至少一名实际玩家。大厅切换模式会刷新原版人数缓存、开始按钮及手柄提示，点击开始前再次按最终配置检查人数。标准模式在 Release 保持四人门槛；调试设置或 Debug 构建允许一人，自由模式的 0 下限不被调试补丁覆盖。隐藏者模式沿用原版规则。
+
+`PresetStore.HasPendingChanges` 表示设置尚未保存或后台正在写入；这种情况下，开局不重读旧预设，保留刚选择的模式。没有待保存改动时仍加载当前预设。正常开始走原版 `BeginGame` 和倒计时；“跳过”重新验证房主、人数及握手，再使用倒计时结束入口 `FinallyBegin`，不会重复启动游戏。
+
 这是模式框架雏形：提供分配、人数门槛、自动结束、职业切换和生命周期策略。Nebula 的额外特殊玩法与成就／语音等系统不在这四项需求内。
 
 ## 参考与验证
@@ -92,8 +96,8 @@ GameModeRegistry.Register(new GameModeDefinition(
 DOTNET=dotnet bash Tools/run-regressions.sh
 ```
 
-此脚本构建 Debug/Release 插件、验证服务器，运行既有回归、直接链接生产按钮／胜利／模式代码的托管场景回归、生产 RPC 编解码／发送接收回归，并编译独立 API 消费者。通过检查的 DLL 最终保留为 Release。Unity 替身用于可控场景测试，不能证明真实 IL2CPP 环境的渲染、相机层、点击区域或联网时序。
+此脚本构建 Debug/Release 插件、验证服务器，运行既有回归、直接链接生产按钮／胜利／模式代码的托管场景回归、生产 RPC 编解码／发送接收回归，以及 Debug/Release 两套大厅回归，并编译独立 API 消费者。大厅回归直接链接生产模式注册、配置、预设编解码／落盘和补丁，用原版人数缓存、警告及倒计时契约的托管替身检查开局链路，并检查发布 DLL 的 Harmony 注册及优先级。通过检查的 DLL 最终保留为 Release。Unity 替身用于可控场景测试，不能证明真实 IL2CPP 环境的渲染、相机层、点击区域或联网时序。
 
-2026-10-12 验证结果：Debug/Release 插件与 Release 验证服务器构建通过；既有 69 项、玩法 89 项、RPC 9 项，共 167 项检查通过；独立 net6.0 API 消费者编译通过。插件构建仍有仓库原有警告，不能据此宣称零警告。交付包内保存完整日志和最终 DLL 哈希。
+2026-10-12 验证结果：Debug/Release 插件与 Release 验证服务器构建通过；既有 69 项、玩法 89 项、RPC 9 项、大厅 Debug/Release 各 44 项，共 255 项检查通过；独立 net6.0 API 消费者编译通过。插件构建仍有仓库原有警告，不能据此宣称零警告。交付包内保存完整日志和最终 DLL 哈希。
 
 实机验收入口：将 `Output/Light.dll` 和 `Output/LightInDark.dll` 一起放入测试游戏插件目录；双客户端依次验证标准模式、豺狼／跟班胜利、任务／破坏胜利、会议名牌按钮、左右下角、多次会议、自身职业切换、自由模式单人开局及 Alt+F。检查快捷键文字、分辨率变化和按钮点击区。当前 Linux 工作区没有 Among Us/Unity 实机，以上显示和实际联网项目尚未执行。

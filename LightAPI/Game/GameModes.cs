@@ -25,7 +25,8 @@ public sealed class GameModeDefinition
         CreateAllocator = createAllocator ?? throw new ArgumentNullException(nameof(createAllocator));
         AllowAutomaticEnd = allowAutomaticEnd;
         AllowRoleChanges = allowRoleChanges;
-        MinimumPlayers = Math.Clamp(minimumPlayers, 1, 15);
+        // Zero disables the vanilla minimum-player warning (used by free play).
+        MinimumPlayers = Math.Clamp(minimumPlayers, 0, 15);
     }
 }
 

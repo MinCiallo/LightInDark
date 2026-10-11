@@ -17,7 +17,7 @@ public static class GameModeConfigRegistrar
         GameModeRegistry.Register(new GameModeDefinition(GameModeRegistry.Standard,
             "标准模式", () => new StandardRoleAllocator()));
         GameModeRegistry.Register(new GameModeDefinition(GameModeRegistry.FreePlay,
-            "自由模式", () => new FreePlayRoleAllocator(), false, true, 1));
+            "自由模式", () => new FreePlayRoleAllocator(), false, true, 0));
         var block = new ConfigBlock("lid.gameMode", "游戏模式", ConfigCategory.Mod);
         _item = block.AddConfiguration(Key, GameModeRegistry.All.Select(m => m.DisplayName).ToArray(),
             "游戏模式", "标准模式按配置分配职业并判定胜利；自由模式可切换职业，不会自动结束。下一局生效。");
@@ -34,6 +34,7 @@ public static class GameModeConfigRegistrar
     {
         GameModeManager.Select(SelectedMode.Id);
     }
-    public static GameModeDefinition SelectedMode => GameModeRegistry.Get(_modeIds[
-        Math.Clamp(_item?.GetInt() ?? 0, 0, _modeIds.Length - 1)]);
+    public static GameModeDefinition SelectedMode => _modeIds == null || _modeIds.Length == 0
+        ? GameModeRegistry.Get(GameModeRegistry.Standard)
+        : GameModeRegistry.Get(_modeIds[Math.Clamp(_item?.GetInt() ?? 0, 0, _modeIds.Length - 1)]);
 }
