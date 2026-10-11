@@ -1,0 +1,43 @@
+# Assignable
+
+"role.twin.name" : "双子"
+"role.twin.generalBlurb" : "運命共同体"
+"role.twin.blurb" : "あなたは%NAME%と双子だ"
+
+# Document
+
+"role.twin.doc" : "2人1組のモディファイアです。双子はクルーメイトにのみ割り当てられます。<br>双子のどちらかがキルされそうになると、そのキルは防がれ、代わりにもう一方が<b>自己犠牲</b>によって死亡します。<br>互いに生存している間、双子は<b>2人で1票</b>しか投じられません。"
+
+# Options
+
+"options.role.twin.detail" : "双子は2人1組のクルーメイトです。<br>一方がキルされそうになると、もう一方が犠牲になって代わりに死亡します。"
+"options.role.twin.numOfPairs" : "双子のペア数"
+"options.role.twin.selfSacrificeDelay" : "自己犠牲までの遅延"
+"options.role.twin.selfSacrificeDelayDispersion" : "自己犠牲までの遅延のばらつき"
+"options.role.twin.selfSacrificeDelayDispersion.detail" : "自己犠牲で死亡するまでの遅延にばらつきを設けます。"
+
+# Game
+
+"state.selfSacrifice" : "自己犠牲"
+
+# UI
+
+
+# Stats
+
+
+# Titles
+
+"achievement.twin.common1.title" : "許すまじ敵"
+"achievement.twin.common1.goal" : "双子の相方を犠牲にせしめたキラーを追放する。"
+"achievement.twin.common1.splitted.1" : "まじ"
+
+"achievement.twin.another1.title" : "惨憺たる運命"
+"achievement.twin.another1.goal" : "双子の一方が自己犠牲で死亡したうえで、もう一方が追放される。"
+
+"achievement.twin.challenge.title" : "全部だからね"
+"achievement.twin.challenge.goal" : "相方を失いながら全非クループレイヤーを自身の手でキルし、勝利する。"
+"achievement.twin.challenge.cond" : "シークレットとしてゲームを開始すること+非クループレイヤー: 2人以上"
+
+# Team
+

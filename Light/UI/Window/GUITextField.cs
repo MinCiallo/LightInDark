@@ -1,3 +1,4 @@
+using Color = LightInDark.Color;
 using System;
 using System.Collections.Generic;
 using Il2CppInterop.Runtime.Injection;
@@ -6,7 +7,6 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.Events;
 using LightInDark.Core;
-using Color = LightInDark.Color;
 using Object = UnityEngine.Object;
 
 namespace Light.UI.Window;
@@ -14,7 +14,7 @@ namespace Light.UI.Window;
 /// <summary>
 /// 输入框 Widget 包装：将 GUITextField 接入 GUI 布局体系
 /// </summary>
-public class TextFieldWidget : AbstractGUIWidget
+public class TextFieldWidget   // 2026-10-11: 去掉基类（AbstractGUIWidget 属 Nova ✗，而我们这边没人用它 ✓）
 {
     /// <summary>底层输入框（Instantiate 后可用）</summary>
     public GUITextField? Field { get; private set; }
@@ -23,14 +23,22 @@ public class TextFieldWidget : AbstractGUIWidget
     private readonly string _hint;
     private readonly Action<string>? _onEnter;
 
-    public TextFieldWidget(GUIAlignment alignment, Vector2 size, string hint, Action<string>? onEnter) : base(alignment)
+    public TextFieldWidget(GUIAlignment alignment, Vector2 size, string hint, Action<string>? onEnter)
     {
         _size = size;
         _hint = hint;
         _onEnter = onEnter;
     }
 
-    public override GameObject? Instantiate(Size size, out Size actualSize)
+
+    /// <summary>
+    /// 带锚点的重载 ✓ —— 基类 `AbstractGUIWidget` 的**抽象成员就是这个三参数版本** ✓
+    /// （我们旧写法只重写了 `Instantiate(Size, out Size)` ✗ → 报"没有找到适合的方法来重写" ✓）
+    /// </summary>
+    public GameObject? Instantiate(Anchor anchor, Size size, out Size actualSize)
+        => Instantiate(size, out actualSize);
+
+    public GameObject? Instantiate(Size size, out Size actualSize)
     {
         try
         {

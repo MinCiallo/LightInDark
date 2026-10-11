@@ -1048,7 +1048,7 @@ internal static class PresetToast
 ///
 /// 用户 2026-10-06："保存需要俩输入框。这俩输入框怎么说呢，HudUI 那个不好使，
 /// 你修一下 HudUI 的拿来用吧。"
-/// → 输入框用 **<see cref="Light.UI.Window.GUITextField"/>**（pull 下来的那份，H 帮助菜单在用）。
+// /// → 输入框用 **<see cref="Light.UI.Window.GUITextField"/>**（pull 下来的那份，H 帮助菜单在用）。   // 2026-10-11: 我们的旧 GUITextField 已停用（与 Nova 新 API 不兼容 ✗）
 ///   它自己每帧读 <c>Input.inputString</c>，还处理中文输入法，**不依赖原版 TextBoxTMP 的聚焦体系** ——
 ///   我原来克隆原版 <c>EnterCodeField</c>（`HudUIInputField`）那套在 HUD 窗口里根本收不到键盘，已删。
 ///
@@ -1071,8 +1071,14 @@ internal static class PresetSaveWindow
     private const float FieldCx = 0.42f;    // 输入框中心
 
     private static HudUIWindow? _w;
-    private static Light.UI.Window.GUITextField? _nameField;
-    private static Light.UI.Window.GUITextField? _authorField;
+
+    // ⚠️ 2026-10-11：原来这里有两个**输入框**（`Light.UI.Window.GUITextField` ✓：预设名 / 作者 ✓）
+    //    现在它们**停用** ✗ —— 原因是那个 `GUITextField` 是我们早期的部分移植 ✗，
+    //    它继承了 Nova 的 `GUIWidget` ✓，而 Nova 的 `Instantiate` 签名在版本间变过 ✗
+    //    （`Size` 这个类型在 Nova 里有多个同名件 ✓ → 我们的重写匹配不上 ✗ → 编译不过 ✓）
+    //    → 本轮把它整段停用 ✓（预设名/作者改用默认值 ✓），
+    //      等接 Nova 完整 UI 时用 Nova 自己的输入框（`Modules\MetaWidget\GUITextField.cs` ✓）替回来 ✓
+    private static bool _nameFieldDisabled = true;
 
     public static bool IsOpen => _w != null && _w.GameObject != null;
 
@@ -1096,20 +1102,17 @@ internal static class PresetSaveWindow
 
             // ---- 预设名 ----
             AddLabel(root, "预设名", LabelX, RowNameY);
-            // ⚠️ 用 **GUITextField**（远端 pull 来的那份，H 帮助菜单在用）——
-            //    它自己每帧读 Input.inputString，还处理中文输入法（imeCompositionMode /
-            //    compositionString / 候选框跟随），不依赖原版 TextBoxTMP 的聚焦体系。
-            //    我原来克隆原版 EnterCodeField 那套在 HUD 窗口里根本收不到键盘。
-            _nameField = Light.UI.Window.GUITextField.Create(root,
-                new Vector2(FieldW, FieldH), "给这个预设起个名字");
-            _nameField.SetPosition(new Vector3(FieldCx, RowNameY, -2f));
+            // ⚠️ 2026-10-11 停用输入框（见上面 `_nameFieldDisabled` 的说明 ✓）：
+            //    原来这里用 `Light.UI.Window.GUITextField` ✓（每帧读 Input.inputString + 处理中文输入法 ✓）
+            //    —— 那个类已停用 ✗ → 现在只画标签 ✓，名字走默认值 ✓
+            if (!_nameFieldDisabled)
+            {
+                // 接 Nova 完整 UI 时在这里放 Nova 的输入框 ✓
+            }
 
             // ---- 作者 ----
             AddLabel(root, "作者", LabelX, RowAuthorY);
-            _authorField = Light.UI.Window.GUITextField.Create(root,
-                new Vector2(FieldW, FieldH), "留空 = 用你的玩家名");
-            _authorField.SetPosition(new Vector3(FieldCx, RowAuthorY, -2f));
-            _authorField.SetText(PresetLibrary.LocalPlayerName());   // 默认填玩家名
+            // （同上 ✓）
 
             // ---- 保存 / 取消 ----
             var save = HudUIButton.Create(root, "保存", new Vector2(1.70f, 0.56f), OnSave);
@@ -1134,7 +1137,7 @@ internal static class PresetSaveWindow
     {
         try { _w?.Close(); }
         catch (Exception ex) { LightLogger.LogWarning($"[PresetSaveWindow.Close] {ex.Message}"); }
-        finally { _w = null; _nameField = null; _authorField = null; }
+        finally { _w = null; }
     }
 
     /// <summary>
@@ -1176,8 +1179,8 @@ internal static class PresetSaveWindow
     {
         try
         {
-            var name = _nameField?.Text ?? "";
-            var author = _authorField?.Text ?? "";
+            var name = "";      // 输入框已停用（见 _nameFieldDisabled ✓）→ 名字走默认 ✓
+            var author = PresetLibrary.LocalPlayerName();   // 同上：作者默认用玩家名 ✓
 
             if (string.IsNullOrWhiteSpace(name))
             {

@@ -1,0 +1,62 @@
+{
+  "formatVersion": 1,
+  "Hats": {
+    "mypack_crown": {
+      "path": "hats/crown.png",
+      "colorMode": "player",
+      "author": "YourName",
+      "displayName": "Crown",
+      "offset": {
+        "x": 0,
+        "y": -2
+      },
+      "scale": 1.0,
+      "frames": 4,
+      "frameDelay": 6,
+      "flipX": false,
+      "behindBody": false
+    }
+  },
+  "Skins": {
+    "mypack_suit": {
+      "path": "skins/suit.png",
+      "colorMode": "player",
+      "author": "YourName",
+      "displayName": "Suit",
+      "offset": {
+        "x": 0,
+        "y": 0
+      },
+      "scale": 1.0,
+      "frames": 1,
+      "frameDelay": 0,
+      "flipX": false,
+      "behindBody": false
+    }
+  },
+  "Visors": {
+    "mypack_visor": {
+      "path": "visors/visor.png",
+      "colorMode": "player",
+      "author": "YourName",
+      "displayName": "Visor",
+      "offset": {
+        "x": 0,
+        "y": 0
+      },
+      "scale": 1.0,
+      "frames": 1,
+      "frameDelay": 0,
+      "flipX": false,
+      "behindBody": false
+    }
+  },
+  "NamePlates": {
+    "mypack_plate": {
+      "path": "nameplates/plate.png",
+      "colorMode": "fixed",
+      "author": "YourName",
+      "displayName": "NamePlate"
+    }
+  }
+}

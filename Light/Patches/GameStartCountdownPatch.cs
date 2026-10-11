@@ -1,3 +1,4 @@
+using Color = LightInDark.Color;
 using System;
 using HarmonyLib;
 using LightInDark;
@@ -8,7 +9,6 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 using Object = UnityEngine.Object;
-using Color = LightInDark.Color;
 
 namespace Light.Patches;
 

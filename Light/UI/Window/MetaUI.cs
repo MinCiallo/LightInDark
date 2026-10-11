@@ -1,9 +1,9 @@
+using Color = LightInDark.Color;
 using System;
 using System.Collections.Generic;
 using LightInDark.UI.Window;
 using UnityEngine;
 using LightInDark.Core;
-using Color = LightInDark.Color;
 
 namespace Light.UI.Window;
 

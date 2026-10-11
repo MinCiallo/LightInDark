@@ -1,3 +1,4 @@
+using Color = LightInDark.Color;
 using System;
 using System.Collections.Generic;
 using Il2CppInterop.Runtime.Injection;
@@ -12,7 +13,6 @@ using UnityEngine.UI;
 using LightInDark.Core;
 using Button = UnityEngine.UI.Button;
 using Object = UnityEngine.Object;
-using Color = LightInDark.Color;
 
 namespace Light.UI.HudUI;
 

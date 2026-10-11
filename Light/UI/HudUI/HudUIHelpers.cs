@@ -1,8 +1,8 @@
+using Color = LightInDark.Color;
 using System;
 using TMPro;
 using UnityEngine;
 using LightInDark.Core;
-using Color = LightInDark.Color;
 
 namespace Light.UI.HudUI;
 

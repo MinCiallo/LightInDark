@@ -1,3 +1,4 @@
+using Color = LightInDark.Color;
 using Il2CppInterop.Runtime;
 using LightInDark;
 using LightInDark.UI.Window;
@@ -10,7 +11,6 @@ using LightInDark.Core;
 using System;
 using Object = UnityEngine.Object;
 using Button = UnityEngine.UI.Button;
-using Color = LightInDark.Color;
 using UnityHelper = Light.Utilities.UnityHelper;
 
 namespace Light.UI.Window;

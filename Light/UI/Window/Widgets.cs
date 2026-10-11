@@ -1,3 +1,4 @@
+using Color = LightInDark.Color;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -10,7 +11,6 @@ using UnityEngine.UI;
 using LightInDark.Core;
 using Object = UnityEngine.Object;
 using Button = UnityEngine.UI.Button;
-using Color = LightInDark.Color;
 using UnityHelper = Light.Utilities.UnityHelper;
 
 namespace Light.UI.Window;

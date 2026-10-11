@@ -2405,7 +2405,11 @@ namespace Light.UI.Config
                 //    虽然接管代码里做过一次互斥显隐 ✓，但**原版之后又会把某个页签点亮** ✗
                 //    （工程注释已记："原版 OpenMenu/OpenChancesTab 会把 RoleChancesSettings 重新 SetActive(true)" ✓）
                 //    → 每帧压一次（状态差量 ✓，没漏时一个字节都不写 ✓）
-                Light.Patches.GameSettingMenuPatch.TickTabGuard();
+                //  ⚠️⚠️ 2026-10-11 **已摘掉**：整个 `GameSettingMenuPatch` 被停用 ✓
+                //     （用户："把咱们现在的这份备份到 Patch/Unused 里面并且完全注释掉，
+                //       然后复制粘贴 NOS 的"）→ 那套"每帧压页签"的逻辑随之停用 ✓
+                //     原来的调用留在这里做记录，改由 NOS 那套接管 ✓：
+                //   Light.Patches.GameSettingMenuPatch.TickTabGuard();
 
                 // ★★ 2026-10-10：泄漏取证（一次性，最多 3 次 ✓）——
                 //    把"当前 MOD 页签上**还激活**的原版选项行"是谁打印出来 ✓
@@ -2708,8 +2712,9 @@ namespace Light.UI.Config
                 SuppressForeignOptionRows(menu);
 
                 // ★ 同帧内把 `MainArea` 里"不是我们的页"压住 ✓
-                //   （不然要等下一帧的 `TickTabGuard` ✓ → 会闪一帧 ✗）
-                Light.Patches.GameSettingMenuPatch.SuppressNonModPagesNow();
+                //   （不然要等下一帧 ✓ → 会闪一帧 ✗）
+                //  ⚠️⚠️ 2026-10-11 **已摘掉**（整个 `GameSettingMenuPatch` 已停用 ✓）：
+                //   Light.Patches.GameSettingMenuPatch.SuppressNonModPagesNow();
             }
             catch (Exception ex)
             {

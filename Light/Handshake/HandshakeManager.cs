@@ -185,7 +185,7 @@ public static class HandshakeManager
     // 客户端侧：收到挑战 → 拉票 → 发握手
     // =====================================================================
 
-    private static void OnChallengeReceived(MessageReader reader)
+    private static void OnChallengeReceived(Hazel.MessageReader reader)
     {
         try
         {
@@ -321,7 +321,7 @@ public static class HandshakeManager
         NoHandshake,  // 超时未握手
     }
 
-    private static void OnHandshakeReceived(MessageReader reader)
+    private static void OnHandshakeReceived(Hazel.MessageReader reader)
     {
         try
         {

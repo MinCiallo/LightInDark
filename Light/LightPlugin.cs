@@ -74,6 +74,37 @@ public partial class LightPlugin : BasePlugin
             LightSettingsData = LightSettings.LoadSettingData();
 
             Harmony.PatchAll(); // 鸿蒙
+
+            // ═══════════════════════════════════════════════════════════════
+            //  ★★ 2026-10-11：挂 NOS(Nova)的补丁 —— **只挂设置界面那几个** ✓✓
+            //
+            //  ⚠️ 为什么不 `Harmony.PatchAll(novaAsm)`：
+            //     用户实测"现在的行为很像 NOS 和 LID 一起强制运行" ✗ ——
+            //     因为 Nova 那 753 个文件里有**几十个游戏逻辑补丁** ✗
+            //     （角色分配 / 会议 HUD / RPC / 大厅 / 小游戏 … ✓），
+            //     全量挂上 = 把整个 NOS 的功能都拉进来了 ✗✗
+            //  → 我们只要**它的设置界面** ✓ → 只挂这 6 个类 ✓
+            //    （`Patches\Old\GameOptionPatch.cs` 4 个 + `GameModePatch.cs` 1 个 ✓）
+            //  ⚠️ 用 `CreateClassProcessor(type).Patch()` 逐个挂 ✓，
+            //     单个失败只警告 ✓（不会因为一个补丁把整个模组搞崩 ✗ —— AGENTS §14 的教训 ✓）
+            // ═══════════════════════════════════════════════════════════════
+            try
+            {
+                // ★★★ 2026-10-11 **合并完成** ✓✓：Nova 的源码/资源现在**就在本程序集里** ✓
+                //   （用户："我们开始合并" ✓ —— 见 `LightPluginMain.csproj` 里的说明 ✓）
+                //   → 不再 `Assembly.Load("Light.Nova")` ✗（那个程序集已经不存在了 ✓）
+                //   → 补丁也不用单独挂了 ✓：`Harmony.PatchAll()` 上面已经扫过本程序集 ✓
+                //     而 Nova 的 `Patches\` **只放行了 UI 那两个文件** ✓（见 csproj ✓）
+                //     = 页签/设置行的补丁自动生效 ✓，游戏逻辑补丁一个都不进来 ✓✓
+                var novaAsm = typeof(LightPlugin).Assembly;
+                Patches.NovaBootstrap.Ensure(novaAsm);
+                Log.LogInfo("[Light] NOS(Nova) UI 已合并进主程序集 ✓（初始化交由 NovaBootstrap ✓）");
+            }
+            catch (Exception ex)
+            {
+                Log.LogWarning($"[Light] Nova UI 初始化失败（不影响主插件 ✓）：{ex.Message}");
+            }
+
             // CurrentModRegistration.ModRegistrationGuidString = ModGuid;   // [禁用-MCI]
             Log.LogInfo($"Mod Guid {CurrentModRegistration.ModRegistrationGuidString},解析{CurrentModRegistration.TryGetModRegistrationGuid(out _)},协议版本{Constants.GetBroadcastVersion()}");
             if (!VersionMaker.MakeVersion())

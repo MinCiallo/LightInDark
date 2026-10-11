@@ -1,3 +1,17 @@
+// ═══════════════════════════════════════════════════════════════════════════
+//  ⚠️⚠️ 2026-10-11 **整个文件已被停用**（用户："你先把咱们现在的这份备份到 Patch/Unused 里面
+//      并且完全注释掉，然后，复制粘贴 NOS 的并且复制粘贴 NOS 的资源"）
+//
+//  · 备份：`Light\Patches\Unused\GameSettingMenuPatch.cs.bak`（86,478 字节，原样 ✓）
+//  · 停用方式：`#if false` 包住整个文件 ✓ —— 效果等于"全部注释掉" ✓，
+//    但**不需要**给 1838 行逐行加 `//` ✗（那样容易漏、也容易改坏 ✓），而且**一行就能恢复** ✓
+//  · 它原来干的活（原版规则菜单改造 / 克隆页签菜单 / 配置行铺设 / ChangeTab 接管 …）
+//    改由 **NOS 那套**（`Light\Patches\NosStyleTabPatch.cs` ✓ + `Light\Resources\GUI\` 里的 NOS 资源 ✓）承担 ✓
+//
+//  ⚠️ 引用点也已同步摘掉（否则编译不过 ✗）：
+//    `ConfigUIPanel.cs` 里对 `TickTabGuard()` / `SuppressNonModPagesNow()` 的两处调用 ✓
+// ═══════════════════════════════════════════════════════════════════════════
+#if false
 using System;
 using System.Collections.Generic;
 using HarmonyLib;
@@ -1836,3 +1850,4 @@ public static class GameSettingMenuPatch
         }
     }
 }
+#endif

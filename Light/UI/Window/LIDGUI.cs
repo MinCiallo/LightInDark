@@ -1,3 +1,4 @@
+using Color = LightInDark.Color;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -5,7 +6,6 @@ using LightInDark.UI.Window;
 using TMPro;
 using UnityEngine;
 using LightInDark.Core;
-using Color = LightInDark.Color;
 using Font = LightInDark.UI.Window.Font;
 using FontStyle = LightInDark.UI.Window.FontStyle;
 using TextAlignment = LightInDark.UI.Window.TextAlignment;

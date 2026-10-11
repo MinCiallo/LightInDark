@@ -1,4 +1,4 @@
-﻿using Color = LightInDark.Color;
+using Color = LightInDark.Color;
 using System.Text.Json;
 using LightInDark.Core;
 using System.Text.Json.Serialization;

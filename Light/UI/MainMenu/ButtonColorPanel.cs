@@ -44,7 +44,7 @@ public class ButtonColorPanel
     private string _selectedKey = "";      // "" = 全部
     private SpriteRenderer? _currentSwatch;
     private TextMeshPro? _currentText;
-    private GUITextField? _hexField;
+//     private GUITextField? _hexField;   // 2026-10-11 停用（GUITextField 与我们旧移植的其它部分一起停用了 ✗）
 
     public static ButtonColorPanel? Active { get; private set; }
 
@@ -225,9 +225,9 @@ public class ButtonColorPanel
             1.0f, FontStyles.Normal, TextAlignmentOptions.Left, TextDim, 0.9f);
         try
         {
-            _hexField = GUITextField.Create(root, new Vector2(2.3f, 0.44f), "#RRGGBB", OnHexEntered);
-            if (_hexField != null)
-                _hexField.GameObject.transform.localPosition = new Vector3(cx + 1.5f, -1.35f, -0.1f);
+//             _hexField = GUITextField.Create(root, new Vector2(2.3f, 0.44f), "#RRGGBB", OnHexEntered);   // 2026-10-11 停用（GUITextField 与我们旧移植的其它部分一起停用了 ✗）
+            // (输入框已停用 ✓ —— 这一整段跳过 ✓)
+            // _hexField.GameObject.transform.localPosition = new Vector3(cx + 1.5f, -1.35f, -0.1f);
         }
         catch (Exception ex)
         {
@@ -559,7 +559,7 @@ public class ButtonColorPanel
         _swatches.Clear();
         _currentSwatch = null;
         _currentText = null;
-        _hexField = null;
+
         _built = false;
     }
 }

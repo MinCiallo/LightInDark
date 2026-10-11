@@ -1,3 +1,4 @@
+using Color = LightInDark.Color;
 using LightInDark.UI.Window;
 using TMPro;
 using UnityEngine;
