@@ -24,6 +24,7 @@ namespace LightInDark.Roles
         public Color HighlightColor { get; set; } = Color.Yellow;
 
         private readonly Player _source;
+        public Player Source => _source;
         private readonly float _maxDistance;
         private readonly Func<Player, bool> _predicate;
 

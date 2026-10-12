@@ -27,7 +27,7 @@ public class RoleTable : IRoleTable
         try
         {
             foreach (var kv in _assignments)
-                RpcDefinitions.SetRole(kv.Key, kv.Value.Role.Id, kv.Value.Arguments);
+                RpcDefinitions.SetRoleByCode(kv.Key, kv.Value.Role.CodeName, kv.Value.Arguments);
         }
         catch (Exception ex)
         {

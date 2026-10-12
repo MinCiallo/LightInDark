@@ -28,22 +28,38 @@ namespace LightInDark.UI.Ability
         private ActionButton _actionButton;
         private PassiveButton _passiveButton;
         private bool _meetingActive;
+        private MeetingHud _meeting;
+        private Vector3? _position;
+        private int _slot;
+        private bool _createdOnce;
+        public MeetingCorner Corner { get; set; } = MeetingCorner.BottomRight;
 
         /// <summary>按钮在会议界面中的位置（默认右下角，相对 MeetingHud 根节点）。</summary>
-        public Vector3 Position { get; set; } = new Vector3(5.1f, -2.2f, -1.5f);
+        public Vector3 Position
+        {
+            get => _position ?? new Vector3(Corner == MeetingCorner.BottomRight ? 5.1f - _slot * 1.15f : -5.1f + _slot * 1.15f, -2.2f, -1.5f);
+            set => _position = value;
+        }
 
         /// <summary>按钮旋转（默认 0）。</summary>
         public Quaternion Rotation { get; set; } = Quaternion.identity;
 
         private MeetingAbilityButton(RuntimeRoleTemplate role, Player player, RoleButtonConfig config, Action onClick)
-            : base(role, player, config, onClick) { }
+            : base(role, player, config, onClick)
+        {
+            _config.AllowDuringMeeting = true;
+            if (ReferenceEquals(_config.CanUse, RoleButtonConfig.DefaultCanUse)) _config.CanUse = () => true;
+            if (ReferenceEquals(_config.CanRunCooldown, RoleButtonConfig.DefaultCanRunCooldown)) _config.CanRunCooldown = _ => true;
+        }
 
         /// <summary>创建会议右下角按钮并注册到管理器。</summary>
-        public static MeetingAbilityButton Create(RuntimeRoleTemplate role, RoleButtonConfig config, Action onClick)
+        public static MeetingAbilityButton Create(RuntimeRoleTemplate role, RoleButtonConfig config, Action onClick,
+            MeetingCorner corner = MeetingCorner.BottomRight)
         {
             try
             {
                 var button = new MeetingAbilityButton(role, role.MyPlayer, config, onClick);
+                button.Corner = corner;
                 RoleButtonManager.Register(button);
                 return button;
             }
@@ -60,8 +76,10 @@ namespace LightInDark.UI.Ability
         {
             try
             {
+                if (IsDeadObject || !_player.IsLocal || meeting == null) return;
                 _meetingActive = true;
-                if (meeting == null) return;
+                _meeting = meeting;
+                _slot = RoleButtonManager.MeetingSlot(this, Corner);
 
                 // ⚠️ 不用 `PlayerControl.LocalPlayer?.Data?.IsDead`（AGENTS §4.6.1）：
                 //   LocalPlayer 是 Unity 对象，假 null 时 `?.` 挡不住、访问 Data 会抛 ✗
@@ -90,6 +108,10 @@ namespace LightInDark.UI.Ability
                     _actionButton.graphic.material = new Material(_actionButton.graphic.material);
 
                 ApplyMeetingConfig();
+                PrepareVisuals();
+                if (!_createdOnce && _config.StartOnCooldown) StartCooldown();
+                _createdOnce = true;
+                foreach (var aspect in _gameObject.GetComponentsInChildren<AspectPosition>(true)) aspect.enabled = false;
 
                 if (_passiveButton != null)
                 {
@@ -106,6 +128,7 @@ namespace LightInDark.UI.Ability
                 }
 
                 _gameObject.SetActive(true);
+                Update();
             }
             catch (Exception ex)
             {
@@ -116,6 +139,7 @@ namespace LightInDark.UI.Ability
         internal void OnMeetingEnd()
         {
             _meetingActive = false;
+            _meeting = null;
             DestroyUI();
         }
 
@@ -163,5 +187,10 @@ namespace LightInDark.UI.Ability
         protected override bool ShouldShow
             => _meetingActive && _gameObject != null && _player.IsLocal && !_player.IsDead
                 && _config.CanShow();
+
+        protected override bool ShouldBeUsable => _meeting != null
+            && (_meeting.state == MeetingHud.MeetingStates.Discussion || _meeting.state == MeetingHud.MeetingStates.NotVoted
+                || _meeting.state == MeetingHud.MeetingStates.Voted) && base.ShouldBeUsable;
+        protected override bool ShouldTickCooldown() => _meetingActive && _meeting != null && !_player.IsDead;
     }
 }

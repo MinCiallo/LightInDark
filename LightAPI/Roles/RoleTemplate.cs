@@ -65,6 +65,14 @@ namespace LightInDark.Roles
         /// <summary>队伍：覆写成同一个字符串即视为同队（名字互相可见、不能互相击杀）。</summary>
         public virtual string TeamCode => null;
 
+        /// <summary>Victory faction, independent of targeting and name visibility.</summary>
+        public virtual string VictoryTeamCode => RoleCategory == RoleCategory.Neutral
+            ? TeamCode ?? CodeName : RoleCategory.ToString();
+        public virtual bool CountsTasksTowardVictory => RoleCategory == RoleCategory.Crewmate;
+        public virtual bool BlocksParityVictory => RoleCategory == RoleCategory.Neutral && NeutralType == NeutralType.Evil;
+        public virtual Game.NeutralWinCondition NeutralVictory => BlocksParityVictory
+            ? Game.NeutralWinCondition.Parity : Game.NeutralWinCondition.Manual;
+
         /// <summary>能否钻通风管：覆写 true 即可，不需要改补丁。</summary>
         public virtual bool CanUseVents => false;
 

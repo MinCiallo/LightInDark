@@ -179,6 +179,13 @@ namespace LightInDark.Configuration
         }
         /// <summary>候选表（Value/Filter 用）。</summary>
         public string[] Selections { get; internal set; }
+        public void SetSelections(string[] selections)
+        {
+            if (selections == null || selections.Length == 0) throw new ArgumentException("Selections cannot be empty");
+            Selections = (string[])selections.Clone();
+            Max = selections.Length - 1;
+            _value = Clamp(_value);
+        }
         /// <summary>候选索引（Value/Filter 的有效值就是它）。</summary>
         public int Selection
         {

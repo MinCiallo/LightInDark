@@ -58,6 +58,8 @@ namespace LightInDark.Game
             }
         }
         public RuntimeRoleTemplate Role { get; internal set; }
+        /// <summary>Victory identity retained when a ghost role replaces abilities after death.</summary>
+        public RoleTemplate VictoryRole { get; private set; }
 
         /// <summary>
         /// 职业数据位（对齐 Nebula 的 `roleData` 字典）。见 <see cref="Roles.RoleData"/>：
@@ -148,6 +150,7 @@ namespace LightInDark.Game
                 // ★ 先赋值、再激活（审查 #12）：否则 OnActivated 里读到的 MyPlayer.Role 还是旧职业
                 var runtime = newRole.CreateRuntimeFor(this);
                 Role = runtime;
+                if (!newRole.IsGhostRole) VictoryRole = newRole;
                 runtime?.Activate();
 
                 EventTriggers.OnRoleAssigned(Control, newRole, arguments);
@@ -179,6 +182,7 @@ namespace LightInDark.Game
                 // ★ 先赋值、再激活（审查 #12，与 SetRole 同理）
                 var runtime = newRole.CreateRuntimeFor(this);
                 Role = runtime;
+                if (!newRole.IsGhostRole) VictoryRole = newRole;
                 runtime?.Activate();
 
                 Core.LightLogger.Log($"[Player] {Name} (本地) → {newRole.Name}");

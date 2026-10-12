@@ -33,8 +33,10 @@ namespace Light.Patches
                 // 自定义胜负在 RpcEndGame / AmongUsClient.OnGameEnd 层拦截处理。
                 // 玩家数据已在 SelectRoles 阶段初始化（此时玩家已生成、角色已分配）。
                 EventTriggers.OnIntroEnd();
+                // Result reset is synchronized before assignment by SyncGameMode.
+                // Do not erase an end result if this client's intro finishes after the host.
+                LightInDark.Game.GameModeManager.BeginRound();
                 EventTriggers.OnGameStart(PlayerControl.AllPlayerControls.Count);
-                LightInDark.Game.EndGameManager.OnNewGameStart();
                 LightInDark.Modifiers.ModifierManager.ClearAll();
                 LightLogger.Log("[Patch] 游戏开始，已保持原版结束检查开启，自定义胜负在 RpcEndGame 层处理");
             }
@@ -51,8 +53,7 @@ namespace Light.Patches
         {
             try
             {
-                __result = false;
-                return false;
+                return true;
             }
             catch (System.Exception)
             {
@@ -68,11 +69,7 @@ namespace Light.Patches
         {
             try
             {
-                var ev = new GameTryEndEvent { CrewmatesWin = true, Reason = "task" };
-                EventSystem.RunEvent(ev);
-                // 放行原版：全部任务完成时原版 CheckEndGameViaTasks 会调用 RpcEndGame 结束游戏。
-                // 只有自定义逻辑明确取消时才拦下。
-                return !ev.IsCanceled;
+                return LightInDark.Game.GameModeManager.AllowAutomaticEnd;
             }
             catch (System.Exception)
             {
@@ -88,8 +85,7 @@ namespace Light.Patches
         {
             try
             {
-                __result = false;
-                return false;
+                return true;
             }
             catch (System.Exception)
             {
@@ -126,6 +122,7 @@ namespace Light.Patches
                     var mode = GameOptionsManager.Instance.CurrentGameOptions.GameMode;
                     if (mode != GameModes.Normal)
                     {
+                        LightInDark.Game.GameModeManager.Select(LightInDark.Game.GameModeRegistry.Standard);
                         LightLogger.Log($"[Patch] 当前模式 {mode} 不是普通模式 → 跳过自定义职业分配");
                         return;
                     }
@@ -173,7 +170,10 @@ namespace Light.Patches
                     return;
                 }
 
-                new StandardRoleAllocator().Assign(impostors, others);
+                Light.Config.GameModeConfigRegistrar.SelectForRound();
+                var allocator = LightInDark.Game.GameModeManager.Current?.CreateAllocator();
+                if (allocator == null) throw new InvalidOperationException("当前模式没有职业分配器");
+                allocator.Assign(impostors, others);
 
                 // ★ 2026-10-06 用户要求「给所有 dummy 分配船员职业，不阻止」：
                 //   把**每个玩家**（含假人）的底色职业写进持久数据 ——

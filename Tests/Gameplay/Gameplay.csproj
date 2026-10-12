@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>disable</Nullable></PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../LightAPI/UI/Ability/*.cs" Exclude="../../LightAPI/UI/Ability/HudGrid.cs;../../LightAPI/UI/Ability/AbilityButtonFactory.cs" Link="Production/%(Filename)%(Extension)" />
+    <Compile Include="../../LightAPI/Game/Victory*.cs" Link="Production/%(Filename)%(Extension)" />
+    <Compile Include="../../LightAPI/Game/GameModes.cs" Link="Production/GameModes.cs" />
+    <Compile Include="../../LightAPI/Game/EndGameManager.cs" Link="Production/EndGameManager.cs" />
+    <Compile Include="../../LightAPI/Game/GameEndReason.cs" Link="Production/GameEndReason.cs" />
+    <Compile Include="../../LightAPI/Configuration/GameConfig.cs" Link="Production/GameConfig.cs" />
+    <Compile Include="../../LightAPI/Core/ILifespan.cs" Link="Production/ILifespan.cs" />
+    <Compile Include="../../LightAPI/Roles/RoleAllocator.cs" Link="Production/RoleAllocator.cs" />
+    <Reference Include="Mono.Cecil"><HintPath>../../Libs/Mono.Cecil.dll</HintPath></Reference>
+  </ItemGroup>
+</Project>

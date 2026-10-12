@@ -21,6 +21,7 @@ namespace LightInDark.UI.Ability
 
         /// <summary>上次的 HUD 可见性（只在变化时打日志）。</summary>
         private static bool _lastVisible = true;
+        private static int _lastUpdateFrame = -1;
 
         /// <summary>当前注册的按钮数（调试用）。</summary>
         public static int Count => _buttons.Count;
@@ -30,12 +31,19 @@ namespace LightInDark.UI.Ability
         {
             try
             {
-                if (button == null) return;
+                if (button == null || button.IsDeadObject || _buttons.Contains(button)) return;
                 _buttons.Add(button);
+                button.SetHudActive(_lastVisible);
 
                 // 会议按钮由 MeetingHud.Start 创建（OnMeetingStart），此处不创建
                 if (button is MeetingTargetButton || button is MeetingAbilityButton)
                 {
+                    var meeting = MeetingHud.Instance;
+                    if (meeting != null)
+                    {
+                        if (button is MeetingTargetButton target) target.OnMeetingStart(meeting);
+                        if (button is MeetingAbilityButton ability) ability.OnMeetingStart(meeting);
+                    }
                     LightLogger.Log($"[RoleButtonManager] 注册 {button.GetType().Name}（{button.Role?.CodeName ?? "?"}）→ 会议类，等会议开始再建");
                     return;
                 }
@@ -70,12 +78,13 @@ namespace LightInDark.UI.Ability
             {
                 HudGrid.Ensure();
                 LightLogger.Log($"[RoleButtonManager] HUD 就绪，补建 {_pendingHud.Count} 个待建按钮（累计 {_buttons.Count} 个）");
-                foreach (var b in _pendingHud)
+                foreach (var b in _buttons.ToArray())
                 {
                     if (b.IsDeadObject) continue;
+                    if (b is MeetingTargetButton || b is MeetingAbilityButton || b.HasUI) continue;
                     b.Create();
+                    if (b.HasUI) _pendingHud.Remove(b);
                 }
-                _pendingHud.Clear();
             }
             catch (Exception ex)
             {
@@ -83,32 +92,42 @@ namespace LightInDark.UI.Ability
             }
         }
 
-        private static readonly List<PlayerTracker> _trackers = new();
+        private static readonly List<(PlayerTracker Tracker, RuntimeRoleTemplate Owner)> _trackers = new();
 
         /// <summary>注册一个目标追踪器，随按钮一起每帧更新。</summary>
-        public static void RegisterTracker(PlayerTracker tracker)
+        public static void RegisterTracker(PlayerTracker tracker, RuntimeRoleTemplate owner = null)
         {
-            if (tracker != null) _trackers.Add(tracker);
+            if (tracker != null && !_trackers.Exists(t => ReferenceEquals(t.Tracker, tracker)))
+                _trackers.Add((tracker, owner ?? tracker.Source?.Role));
         }
 
         /// <summary>每帧更新所有按钮。</summary>
         public static void UpdateAll()
         {
+            if (_lastUpdateFrame == Time.frameCount) return;
+            _lastUpdateFrame = Time.frameCount;
             try
             {
                 // ★ 先压住原版技能按钮（用户 2026-10-06 报的三个 Bug 的共同根因之一）：
                 //   原版技能职业每帧驱动 HudManager.AbilityButton，`SetHudActive` 还会把它重新显示 ✗
                 //   本地玩家有自定义职业时就不该看到它（没自定义职业时不动它 → 保持原版行为 ✓）
                 SuppressVanillaAbilityButtons();
+                if (_pendingHud.Count > 0 && HudManager.Instance != null && HudManager.Instance.AbilityButton != null)
+                    CreateAllHudButtons();
 
-                for (int i = _buttons.Count - 1; i >= 0; i--)
+                foreach (var b in _buttons.ToArray())
                 {
-                    var b = _buttons[i];
-                    if (b.IsDeadObject) { _buttons.RemoveAt(i); continue; }
-                    b.Update();
+                    if (b.IsDeadObject) { _buttons.Remove(b); _pendingHud.Remove(b); continue; }
+                    if (!b.HasUI && b is not MeetingTargetButton && b is not MeetingAbilityButton)
+                    {
+                        if (!_pendingHud.Contains(b)) _pendingHud.Add(b);
+                        continue;
+                    }
+                    try { b.Update(); }
+                    catch (Exception ex) { LightLogger.LogError($"[RoleButtonManager] Update {b.GetType().Name}", ex); }
                 }
 
-                foreach (var tracker in _trackers) tracker.Update();
+                foreach (var tracker in _trackers.ToArray()) tracker.Tracker.Update();
             }
             catch (Exception ex)
             {
@@ -163,7 +182,7 @@ namespace LightInDark.UI.Ability
                     LightLogger.Log($"[RoleButtonManager] HUD 可见性 → {(visible ? "显示" : "隐藏")}（{_buttons.Count} 个按钮）");
                 }
 
-                foreach (var b in _buttons)
+                foreach (var b in _buttons.ToArray())
                     b.SetHudActive(visible);
             }
             catch (Exception ex)
@@ -177,10 +196,15 @@ namespace LightInDark.UI.Ability
         {
             try
             {
-                foreach (var b in _buttons)
+                foreach (var b in _buttons.ToArray())
                 {
-                    if (b is MeetingTargetButton mtb) mtb.OnMeetingStart(meeting);
-                    else if (b is MeetingAbilityButton mab) mab.OnMeetingStart(meeting);
+                    try
+                    {
+                        b.NotifyMeetingStarted();
+                        if (b is MeetingTargetButton mtb) mtb.OnMeetingStart(meeting);
+                        else if (b is MeetingAbilityButton mab) mab.OnMeetingStart(meeting);
+                    }
+                    catch (Exception ex) { LightLogger.LogError($"[RoleButtonManager] MeetingStart {b.GetType().Name}", ex); }
                 }
             }
             catch (Exception ex)
@@ -194,10 +218,15 @@ namespace LightInDark.UI.Ability
         {
             try
             {
-                foreach (var b in _buttons)
+                foreach (var b in _buttons.ToArray())
                 {
-                    if (b is MeetingTargetButton mtb) mtb.OnMeetingEnd();
-                    else if (b is MeetingAbilityButton mab) mab.OnMeetingEnd();
+                    try
+                    {
+                        if (b is MeetingTargetButton mtb) mtb.OnMeetingEnd();
+                        else if (b is MeetingAbilityButton mab) mab.OnMeetingEnd();
+                        b.NotifyMeetingEnded();
+                    }
+                    catch (Exception ex) { LightLogger.LogError($"[RoleButtonManager] MeetingEnd {b.GetType().Name}", ex); }
                 }
             }
             catch (Exception ex)
@@ -211,6 +240,12 @@ namespace LightInDark.UI.Ability
         {
             try
             {
+                foreach (var tracker in _trackers.ToArray())
+                {
+                    if (!ReferenceEquals(tracker.Owner, role)) continue;
+                    tracker.Tracker.Stop();
+                    _trackers.Remove(tracker);
+                }
                 for (int i = _buttons.Count - 1; i >= 0; i--)
                 {
                     var b = _buttons[i];
@@ -231,14 +266,31 @@ namespace LightInDark.UI.Ability
         {
             try
             {
-                foreach (var b in _buttons) b.Release();
+                foreach (var b in _buttons.ToArray()) b.Release();
+                foreach (var tracker in _trackers.ToArray()) tracker.Tracker.Stop();
                 _buttons.Clear();
                 _pendingHud.Clear();
+                _trackers.Clear();
+                _lastVisible = true;
+                _lastUpdateFrame = -1;
             }
             catch (Exception ex)
             {
                 LightLogger.LogError("[RoleButtonManager.Clear]", ex);
             }
+        }
+
+        internal static int MeetingSlot(RoleButtonBase button, MeetingCorner? corner = null)
+        {
+            int slot = 0;
+            foreach (var candidate in _buttons)
+            {
+                if (ReferenceEquals(candidate, button)) return slot;
+                if (candidate.IsDeadObject) continue;
+                if (corner.HasValue && candidate is MeetingAbilityButton ability && ability.Corner == corner.Value) slot++;
+                if (!corner.HasValue && candidate is MeetingTargetButton) slot++;
+            }
+            return slot;
         }
     }
 
@@ -291,7 +343,7 @@ namespace LightInDark.UI.Ability
             try
             {
                 if (!__instance.AmOwner) return;
-                RoleButtonManager.UpdateAll();
+                // Button input/animation is driven once per render frame by HudManager.Update.
 
                 // ★ 顺手驱动 GameManager 的每帧清理（2026-10-06 审查 #15）：
                 //   `GameManager.Update()`（摘掉死亡/断线玩家）**原本没有任何调用点** ——
@@ -307,6 +359,12 @@ namespace LightInDark.UI.Ability
             {
             }
         }
+    }
+
+    [HarmonyPatch(typeof(HudManager), nameof(HudManager.Update))]
+    public static class RoleButtonsHudUpdatePatch
+    {
+        public static void Postfix() => RoleButtonManager.UpdateAll();
     }
 
     /// <summary>

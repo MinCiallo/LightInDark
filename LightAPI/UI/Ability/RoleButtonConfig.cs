@@ -25,11 +25,13 @@ namespace LightInDark.UI.Ability
         public float Cooldown = 0f;
 
         /// <summary>可用条件（false 时点击无效但仍显示）。</summary>
-        public Func<bool> CanUse = () => PlayerControl.LocalPlayer.CanMove;
+        public static readonly Func<bool> DefaultCanUse = () => PlayerControl.LocalPlayer != null && PlayerControl.LocalPlayer.CanMove;
+        public Func<bool> CanUse = DefaultCanUse;
 
         /// <summary>显示条件（false 时隐藏按钮）。</summary>
-        public Func<bool> CanShow = () => !PlayerControl.LocalPlayer.Data.IsDead;
-        public Predicate<float> CanRunCooldown = (time) => PlayerControl.LocalPlayer.IsKillTimerEnabled;
+        public Func<bool> CanShow = () => PlayerControl.LocalPlayer != null && PlayerControl.LocalPlayer.Data != null && !PlayerControl.LocalPlayer.Data.IsDead;
+        public static readonly Predicate<float> DefaultCanRunCooldown = time => PlayerControl.LocalPlayer != null && PlayerControl.LocalPlayer.IsKillTimerEnabled;
+        public Predicate<float> CanRunCooldown = DefaultCanRunCooldown;
         /// <summary>是否克隆 KillButton 模板（默认克隆 AbilityButton 模板）。</summary>
         public bool IsKillButton = false;
 
@@ -67,6 +69,17 @@ namespace LightInDark.UI.Ability
 
         public bool ShouldBeInLastLine = false;
 
+        public bool StartOnCooldown = true;
+        public bool ResetCooldownAfterMeeting = false;
+        public bool CancelEffectOnMeeting = true;
+        public bool AllowDuringMeeting = false;
+        public Action MeetingStarted;
+        public Action MeetingEnded;
+        public Action<RoleButtonBase> OnUpdate;
+        public Action<RoleButtonBase> OnReleased;
+        public Action<RoleButtonBase> OnBroken;
+        public bool ShowKeyHint = true;
+
         /// <summary>解析后的显示文本。</summary>
         public string ResolvedLabel
         {
@@ -102,6 +115,8 @@ namespace LightInDark.UI.Ability
         public RoleButtonConfig SetArrangedAsKillButton(bool value) { ArrangedAsKillButton = value; return this; }
         public RoleButtonConfig SetOccupiesLine(bool value) { OccupiesLine = value; return this; }
         public RoleButtonConfig SetShouldBeInLastLine(bool value) { ShouldBeInLastLine = value; return this; }
+        public RoleButtonConfig SetStartOnCooldown(bool value) { StartOnCooldown = value; return this; }
+        public RoleButtonConfig SetResetCooldownAfterMeeting(bool value) { ResetCooldownAfterMeeting = value; return this; }
     }
 
     public enum ButtonLabelType

@@ -122,7 +122,8 @@ public static class RoleDebugPanel
         gate = $"调试模式={dbg} AmongUsClient={clientOk} NetworkMode={mode}({(int)mode}) " +
                $"HudManager={hudOk} 局内={inGame}{err}";
 
-        return dbg && clientOk && hudOk;
+        return (dbg || LightInDark.Game.GameModeManager.AllowRoleChanges) && clientOk && hudOk
+            && AmongUsClient.Instance.GameState == InnerNet.InnerNetClient.GameStates.Started;
     }
 
     // =====================================================================
@@ -302,7 +303,10 @@ public static class RoleDebugPanel
                 return;
             }
 
-            me.SetRole(role);
+            if (LightInDark.Game.GameModeManager.AllowRoleChanges)
+                LightInDark.RPCs.RpcDefinitions.RequestFreePlayRole(me.Control.PlayerId, role.CodeName);
+            else
+                me.SetRole(role);
             LightLogger.Log($"[RoleDebugPanel] 已切换职业 → {role.Name}（{role.CodeName} / {role.RoleCategory}）");
 
             // 刷一下"当前职业"那行
