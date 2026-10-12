@@ -103,6 +103,7 @@ public partial class LightPlugin : BasePlugin
             try { Cosmic.CosmicAddonLoader.Load(); }
             catch (Exception ex) { LightLogger.LogWarning($"[Load] 装扮插件加载失败：{ex.Message}"); }
             RoleConfigRegistrar.Register();   // 职业配置块 + 职业专属项
+            Light.Config.GameModeConfigRegistrar.Register();
             Light.Config.AssignmentConfigRegistrar.Register();   // 分配设置（船员/内鬼/中立上限，审查 B7）
             Light.Config.HudLayoutConfigRegistrar.Register();    // HUD 布局（小 HUD / 按钮排列，第 5 批）
             // ⚠️ 详情框的配置项**已删除**（用户 2026-10-10："把详情框的配置项删掉，写死就行" ✓）

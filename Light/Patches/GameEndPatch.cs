@@ -56,6 +56,8 @@ public static class GameEndPatch
             // 检测本地/练习模式
             LightPlayerDataManager.IsLocalMode = AmongUsClient.Instance.NetworkMode == NetworkModes.LocalGame;
             LightPlayerDataManager.IsPracticeMode = false; // AU 没有明确的练习模式标记
+            LightPlayerDataManager.IsPracticeMode = GameModeManager.CurrentId == GameModeRegistry.FreePlay;
+            LightPlayerDataManager.GameModeId = GameModeManager.CurrentId;
 
             // 触发 GameEndEvent
             EventTriggers.OnGameEnd(crewWin, impWin, LightPlayerDataManager.WinReason);
@@ -64,6 +66,7 @@ public static class GameEndPatch
             var winnerCode = LightPlayerDataManager.CustomWinnerCode;
             foreach (var pc in PlayerControl.AllPlayerControls)
             {
+                if (pc == null || pc.Data == null) continue;
                 bool isImpostor = pc.Data.Role.IsImpostor;
                 var player = LightInDark.Game.GameManager.Instance?.GetPlayer(pc.PlayerId);
                 bool isNeutral = player?.IsNeutral() ?? false;
@@ -72,16 +75,19 @@ public static class GameEndPatch
                     ? IsOnWinningTeam(player, winnerCode)
                     : (crewWin && !isImpostor && !isNeutral) || (impWin && isImpostor);
 
-                var checkEv = EventTriggers.OnPlayerCheckWin(pc, LightPlayerDataManager.WinReason);
-                if (checkEv != null && checkEv.IsWin) isWinner = true;
-
-                var extraEv = EventTriggers.OnPlayerCheckExtraWin(pc, LightPlayerDataManager.WinReason);
-                if (extraEv != null && extraEv.IsExtraWin) isWinner = true;
-
-                var blockEv = EventTriggers.OnPlayerBlockWin(pc, isWinner, LightPlayerDataManager.WinReason);
-                if (blockEv != null && blockEv.IsBlocked) isWinner = false;
+                var authoritative = LightInDark.Game.EndGameManager.Result;
+                if (authoritative != null) isWinner = authoritative.IsWinner(pc.PlayerId);
+                else if (AmongUsClient.Instance.AmHost)
+                {
+                    if (EventTriggers.OnPlayerCheckWin(pc, LightPlayerDataManager.WinReason)?.IsWin ?? false) isWinner = true;
+                    if (EventTriggers.OnPlayerCheckExtraWin(pc, LightPlayerDataManager.WinReason)?.IsExtraWin ?? false) isWinner = true;
+                    if (EventTriggers.OnPlayerBlockWin(pc, isWinner, LightPlayerDataManager.WinReason)?.IsBlocked ?? false) isWinner = false;
+                }
+                if (pc.Data.Disconnected) isWinner = false;
 
                 if (player != null) player.IsWinner = isWinner;
+                var replay = LightPlayerDataManager.GetData(pc.PlayerId);
+                if (replay != null) replay.IsWinner = isWinner;
             }
 
             LightLogger.Log($"[GameEnd] 船员胜={crewWin}, 内鬼胜={impWin}, 原因={LightPlayerDataManager.WinReason}");
@@ -94,6 +100,8 @@ public static class GameEndPatch
             //   更彻底的那一半（Player.Release + 事件注销）由 GameManager.Initialize() 幂等化后负责：
             //   它会 Release 掉已销毁的旧实体 ✓
             CleanupRolesAtGameEnd();
+            LightInDark.Game.EndGameManager.OnGameEnded();
+            GameModeManager.EndRound();
 
             // Autosave
             if (LightPlayerDataManager.AutoSaveEnabled)

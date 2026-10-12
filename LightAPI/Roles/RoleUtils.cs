@@ -33,7 +33,7 @@ namespace LightInDark.Roles
 
         /// <summary>所有存活玩家。</summary>
         public static IEnumerable<Player> AlivePlayers()
-            => AllPlayers().Where(p => p.Control != null && p.Control.Data != null && !p.Control.Data.IsDead);
+            => AllPlayers().Where(IsOnField);
 
         /// <summary>所有已死亡玩家。</summary>
         public static IEnumerable<Player> DeadPlayers()

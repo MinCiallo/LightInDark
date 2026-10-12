@@ -53,21 +53,21 @@ public static class InvalidGameEndScreenPatch
 public static class CustomWinEndScreenPatch
 {
     private static string WinnerCode()
-        => LightInDark.Game.EndGameManager.GetCurrentReason() == LightInDark.Game.GameEndReason.CustomWin
+        => LightInDark.Game.EndGameReasonHelper.IsCustomWin(LightInDark.Game.EndGameManager.GetCurrentReason())
             ? LightInDark.Game.EndGameManager.CustomWinnerCode
             : null;
 
     public static void Prefix()
     {
         var code = WinnerCode();
-        if (string.IsNullOrEmpty(code)) return;
+        var result = LightInDark.Game.EndGameManager.Result;
+        if (result == null) return;
 
         var winners = new Il2CppSystem.Collections.Generic.List<CachedPlayerData>();
         foreach (var pc in PlayerControl.AllPlayerControls)
         {
-            if (pc?.Data == null) continue;
-            var player = LightInDark.Game.GameManager.Instance?.GetPlayer(pc.PlayerId);
-            if (player != null && player.IsWinner) winners.Add(new CachedPlayerData(pc.Data));
+            if (pc == null || pc.Data == null || pc.Data.Disconnected) continue;
+            if (result.IsWinner(pc.PlayerId)) winners.Add(new CachedPlayerData(pc.Data));
         }
 
         EndGameResult.CachedWinners = winners;

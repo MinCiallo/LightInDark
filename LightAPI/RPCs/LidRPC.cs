@@ -77,8 +77,13 @@ namespace LightInDark.RPCs
                         var localEntry = entry;
                         CustomRPC.Register(hashStr, reader =>
                         {
+                            if (localEntry.OnlyHost && !SenderIsHost())
+                            {
+                                LightLogger.LogWarning($"[LidRPC] 拒绝非房主消息: {localEntry.HashStr}");
+                                return;
+                            }
                             var args = DeserializeArgs(reader, localEntry.Parameters);
-                            localEntry.Method.Invoke(null, args);
+                            InvokeLocally(localEntry.Method, args);
                         });
 
                         // Harmony Prefix：拦截调用，发送 RPC
@@ -98,7 +103,21 @@ namespace LightInDark.RPCs
         }
 
         // 防止无限递归的标志
-        private static bool _isLocalExecuting;
+        // Bypass only the method being delivered. Nested RPCs still need to be broadcast.
+        private static readonly HashSet<MethodBase> _localExecutingMethods = new();
+        private static void InvokeLocally(MethodInfo method, object[] args)
+        {
+            bool added = _localExecutingMethods.Add(method);
+            try { method.Invoke(null, args); }
+            finally { if (added) _localExecutingMethods.Remove(method); }
+        }
+        private static bool SenderIsHost()
+        {
+            var client = AmongUsClient.Instance;
+            if (client == null || CustomRPC.CurrentSender == byte.MaxValue) return false;
+            var host = client.GetClient(client.HostId);
+            return host != null && host.Character != null && host.Character.PlayerId == CustomRPC.CurrentSender;
+        }
 
         /// <summary>
         /// Harmony Prefix — 拦截 [LidRPC] 方法调用。
@@ -109,7 +128,7 @@ namespace LightInDark.RPCs
             try
             {
                 // 本地执行中：放行，执行方法体
-                if (_isLocalExecuting)
+                if (_localExecutingMethods.Contains(__originalMethod))
                     return true;
 
                 var hashStr = $"{__originalMethod.DeclaringType?.FullName}.{__originalMethod.Name}";
@@ -138,16 +157,11 @@ namespace LightInDark.RPCs
                 {
                     try
                     {
-                        _isLocalExecuting = true;
-                        entry.Method.Invoke(null, __args);
+                        InvokeLocally(entry.Method, __args);
                     }
                     catch (Exception ex)
                     {
                         LightLogger.LogWarning($"[LidRPC] 本地执行失败: {hashStr}: {ex.Message}");
-                    }
-                    finally
-                    {
-                        _isLocalExecuting = false;
                     }
                 }
 

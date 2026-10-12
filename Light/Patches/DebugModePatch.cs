@@ -41,7 +41,7 @@ namespace Light.Patches
         {
             try
             {
-                if (LightInDark.Game.EndGameManager.ConsumeForceEnd()) return true;
+                if (LightInDark.Game.EndGameManager.IsEnding) return true;
 
                 if (!DebugMode.Enabled) return true;      // 未开调试 → 原版行为
 

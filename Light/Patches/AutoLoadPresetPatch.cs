@@ -11,8 +11,8 @@ namespace Light.Patches;
 /// ═══════════════════════════════════════════════════════════════════════
 /// 【为什么挂 `GameStartManager.BeginGame`】
 ///   它是"真正开局"的唯一入口 ✓ —— 原版倒计时归零和本工程的倒计时补丁
-///   （`GameStartCountdownPatch`：注释里写明"直接调用 BeginGame()"）**都走它** ✓
-///   → 挂这里不会漏 ✓（挂 `SetStartCounter` 之类只会在倒计时期间反复触发 ✗）
+///   先通过 BeginGame 开始倒计时，之后跳过与自然归零都进入 FinallyBegin。
+///   → 在这里加载一次，避免倒计时结束时重新覆盖本局设置。
 ///
 /// 【只房主做】
 ///   · `OnlyHost`：配置是房主权威的（同步走 `ConfigSync`）✓，客户端自己加载会**打架** ✗
@@ -37,6 +37,14 @@ internal static class AutoLoadPresetPatch
             // 同一帧重复触发 → 跳过 ✓（正常开局一帧只会调一次）
             if (_lastLoadedFrame == UnityEngine.Time.frameCount) return;
             _lastLoadedFrame = UnityEngine.Time.frameCount;
+
+            // Clicking Start immediately after selecting a mode can precede the debounce write.
+            // Keep the live configuration while that write is pending instead of reloading stale values.
+            if (LightInDark.Configuration.PresetStore.HasPendingChanges)
+            {
+                LightLogger.Log("[AutoLoadPreset] 当前设置尚在保存，保留本次改动，不重读旧预设");
+                return;
+            }
 
             var path = LightInDark.Configuration.PresetStore.CurrentPath;
             if (!System.IO.File.Exists(path))

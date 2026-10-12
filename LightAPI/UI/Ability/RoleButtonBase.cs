@@ -18,7 +18,7 @@ namespace LightInDark.UI.Ability
     ///  - <see cref="PlayOnClickSFX"/>：点击时调用
     ///  - <see cref="PlayCooldownReadySFX"/>：冷却归零时调用
     /// </summary>
-    public abstract class RoleButtonBase : ILifespan, IGameOperator, IReleasable
+    public abstract class RoleButtonBase : ILifespan, IGameOperator, IReleasable, IAbilityButton
     {
         protected readonly RuntimeRoleTemplate _role;
         protected readonly Player _player;
@@ -26,10 +26,14 @@ namespace LightInDark.UI.Ability
         protected Action _onClick;
 
         protected GameObject _gameObject;
-        protected float _cooldownTimer;
-        protected bool _inCooldown;
+        public AbilityTimer CooldownTimer { get; } = new(0f);
+        public virtual IAbilityTimer CurrentTimer => CooldownTimer;
+        protected float _cooldownTimer { get => CooldownTimer.Remaining; set => CooldownTimer.SetRemaining(value); }
+        protected bool _inCooldown { get => CooldownTimer.IsProgressing; set { if (value) CooldownTimer.Resume(); else CooldownTimer.Pause(); } }
         protected bool _hudActive = true;
         protected int _usesLeft;
+        private bool _released;
+        private bool _createdOnce;
 
         private const float MouseClickRadius = 150f;
         private const float FlashInterval = 0.9f;
@@ -43,6 +47,7 @@ namespace LightInDark.UI.Ability
 
         private GameObject _usesIcon;
         private TextMeshPro _usesIconText;
+        private TextMeshPro _keyHint;
         protected RoleButtonBase(RuntimeRoleTemplate role, Player player, RoleButtonConfig config, Action onClick)
         {
             _role = role;
@@ -50,6 +55,8 @@ namespace LightInDark.UI.Ability
             _config = config ?? new RoleButtonConfig();
             _onClick = onClick;
             _usesLeft = _config.MaxUses;
+            CooldownTimer.SetDuration(Math.Max(0f, _config.Cooldown));
+            CooldownTimer.Completed += OnCooldownFinished;
         }
 
         /// <summary>所属职业运行时实例。</summary>
@@ -62,7 +69,9 @@ namespace LightInDark.UI.Ability
         public bool AmOwner => _player?.AmOwner ?? false;
 
         /// <summary>按钮 GameObject 是否已销毁。</summary>
-        public bool IsDeadObject => _gameObject == null;
+        public bool IsDeadObject => _released;
+        public bool HasUI => _gameObject != null;
+        public float CooldownRemaining => _cooldownTimer;
 
         /// <summary>是否处于冷却。</summary>
         public bool IsInCooldown => _inCooldown;
@@ -119,14 +128,15 @@ namespace LightInDark.UI.Ability
         {
             try
             {
+                if (_released || HasUI) return;
                 // 预热点击/冷却音效：避免首次播放的异步解码延迟导致第一次点击无声
                 SfxManager.Warmup(_config.OnClickSFX);
                 SfxManager.Warmup(_config.CooldownReadySFX);
 
                 CreateUI();
-                KillTextTranslator();     // ★ 必须在子类设完 Label 之前/之后都能生效：先干掉原版翻译器
-                ApplyLabelType();
-                if (_config.Cooldown > 0f) StartCooldown();
+                PrepareVisuals();
+                if (!_createdOnce && _config.StartOnCooldown && _config.Cooldown > 0f) StartCooldown();
+                _createdOnce = true;
 
                 // ★ 诊断：按钮系统以前**只在出错时**打日志 → 出问题时完全没线索（AGENTS §4.8）。
                 //   这里把"建成了没有 / 建在哪 / 冷却与次数"打出来：
@@ -154,11 +164,12 @@ namespace LightInDark.UI.Ability
         /// <summary>每帧更新（由 RoleButtonManager 驱动）。</summary>
         public virtual void Update()
         {
-            if (IsDeadObject) return;
+            if (IsDeadObject || !HasUI) return;
             try
             {
                 // ★ 冷却推进（抽成 TickCooldown —— 效果型按钮在效果期间也要调它 ✓）
                 TickCooldown();
+                _config.OnUpdate?.Invoke(this);
 
                 // ② UI 刷新：**唯一出口** ✓
                 //    （对齐 Nebula `ModAbilityButtonImpl.UpdateVisibility()` 的形状 ——
@@ -205,13 +216,7 @@ namespace LightInDark.UI.Ability
                 if (!tickGate) return;
                 if (!configGate) return;
 
-                _cooldownTimer -= Time.deltaTime;
-                if (_cooldownTimer <= 0f)
-                {
-                    _cooldownTimer = 0f;
-                    _inCooldown = false;
-                    OnCooldownFinished();
-                }
+                CooldownTimer.Tick(Time.deltaTime);
             }
             catch (Exception ex)
             {
@@ -263,6 +268,7 @@ namespace LightInDark.UI.Ability
             UpdateUsability();
             UpdateCooldownDisplay();
             UpdateFlash();
+            UpdateKeyHint();
         }
 
         /// <summary>
@@ -417,7 +423,7 @@ namespace LightInDark.UI.Ability
         /// 全部失效（表现就是"按钮文字不对 / 一换语言就变回英文"）。
         /// Nebula 也是显式处理这个组件（`ModAbilityButtonImpl` 里 `enabled = false`、`CustomButton` 里 Destroy）。
         /// </summary>
-        private void KillTextTranslator()
+        protected void KillTextTranslator()
         {
             if (_gameObject == null) return;
             try
@@ -444,21 +450,21 @@ namespace LightInDark.UI.Ability
         /// </summary>
         protected virtual void UpdateCooldownDisplay()
         {
-            if (!_inCooldown || _config.Cooldown <= 0f) return;
+            if (!_inCooldown || CooldownTimer.Duration <= 0f) return;
             var action = Button;
             if (action == null) return;
-            try { action.SetCoolDown(_cooldownTimer, _config.Cooldown); }
+            try { action.SetCoolDown(_cooldownTimer, CooldownTimer.Duration); }
             catch (Exception ex) { LightLogger.LogWarning($"[RoleButton] 冷却显示失败: {ex.Message}"); }
         }
 
         /// <summary>开始冷却。</summary>
         public void StartCooldown()
         {
-            _cooldownTimer = _config.Cooldown;
-            _inCooldown = _config.Cooldown > 0f;
+            CooldownTimer.SetDuration(Math.Max(0f, _config.Cooldown));
+            CooldownTimer.Start();
             if (!_inCooldown) return;
             var action = Button;
-            if (action?.cooldownTimerText != null)
+            if (action != null && action.cooldownTimerText != null)
                 action.cooldownTimerText.gameObject.SetActive(true);
         }
 
@@ -467,6 +473,7 @@ namespace LightInDark.UI.Ability
         {
             _cooldownTimer = 0f;
             _inCooldown = false;
+            OnCooldownFinished();
         }
 
         /// <summary>全局 HUD 激活状态（SetHudActive 调用）。</summary>
@@ -490,7 +497,7 @@ namespace LightInDark.UI.Ability
                 //   Nebula 的 HudGrid 也是这么做的：`content.ActiveFunc = () => obj.activeSelf && !AmongUsUtil.MapIsOpen`
                 if (MapBehaviour.Instance != null && MapBehaviour.Instance.IsOpen) return false;
 
-                if (_config.AlwaysShow) return _hudActive && _config.CanShow();
+                if (_config.AlwaysShow) return _hudActive && _player.IsLocal && _config.CanShow();
                 return _hudActive && _player.IsLocal && !_player.IsDead
                     && MeetingHud.Instance == null && _config.CanShow();
             }
@@ -523,12 +530,12 @@ namespace LightInDark.UI.Ability
         /// ⚠️ 原来热键只判 `activeSelf`（按钮还"显示着"就触发）→ 开会/看地图/做小游戏时按快捷键
         ///    照样把技能放出去。Nebula 用的是 `VirtualInput.KeyDownInGame` + `NebulaInput.SomeUiIsActive`。
         /// </summary>
-        private static bool InputBlocked()
+        protected virtual bool InputBlocked()
         {
             try
             {
                 if (Minigame.Instance != null) return true;
-                if (MeetingHud.Instance != null) return true;
+                if (MeetingHud.Instance != null && !_config.AllowDuringMeeting) return true;
                 if (MapBehaviour.Instance != null && MapBehaviour.Instance.IsOpen) return true;
 
                 var hud = HudManager.Instance;
@@ -580,15 +587,15 @@ namespace LightInDark.UI.Ability
 
         protected virtual void HandleSubClick()
         {
-            if (_broken || _inCooldown) return;
-            if (!_config.CanUse()) return;
-            if (HasLimitedUses && _usesLeft <= 0) return;
+            if (!CanAcceptInput || !ShouldBeUsable || InputBlocked()) return;
+            if (_lastClickFrame == Time.frameCount) return;
+            _lastClickFrame = Time.frameCount;
 
             PlayOnClickSFX();
             _config.SubAction?.Invoke();
         }
 
-        private void ApplyLabelType()
+        protected void ApplyLabelType()
         {
             if (_gameObject == null) return;
             var label = Button?.buttonLabelText;
@@ -700,6 +707,7 @@ namespace LightInDark.UI.Ability
         {
             if (_broken) return;
             _broken = true;
+            _config.OnBroken?.Invoke(this);
 
             try
             {
@@ -786,6 +794,7 @@ namespace LightInDark.UI.Ability
         {
             try
             {
+                if (!CanAcceptInput || InputBlocked()) return;
                 // ⚠️⚠️ **每次点击都重算可用性**。
                 //   原版 `PassiveButton.ReceiveClickDown` **不检查** `ActionButton.CanInteract()`，
                 //   而我们替换了 OnClick —— 于是 `SetDisabled()` 只是改了颜色，
@@ -821,12 +830,15 @@ namespace LightInDark.UI.Ability
         // 释放
         // =====================================================================
 
-        public void Release()
+        public virtual void Release()
         {
+            if (_released) return;
+            _released = true;
             try
             {
                 DestroyUI();
                 _onClick = null;
+                _config.OnReleased?.Invoke(this);
             }
             catch (Exception ex)
             {
@@ -834,6 +846,76 @@ namespace LightInDark.UI.Ability
             }
         }
 
-        void IGameOperator.OnReleased() { }
+        void IGameOperator.OnReleased() => Release();
+
+        protected virtual bool CanAcceptInput => !_released && _gameObject != null && _gameObject.activeInHierarchy && ShouldShow;
+        public bool TryClick()
+        {
+            int previous = _lastClickFrame;
+            HandleClick();
+            return previous != _lastClickFrame;
+        }
+        public void SetUses(int remaining)
+        {
+            _usesLeft = Math.Max(0, remaining);
+            var button = Button;
+            if (button != null && HasLimitedUses) button.SetUsesRemaining(_usesLeft);
+        }
+        public void SetLabel(string label)
+        {
+            _config.Label = label ?? "";
+            var button = Button;
+            if (button != null) button.OverrideText(_config.ResolvedLabel);
+        }
+        public void SetIcon(Sprite icon)
+        {
+            _config.Icon = icon;
+            var button = Button;
+            if (button != null && button.graphic != null && icon != null)
+            {
+                button.graphic.sprite = icon;
+                button.graphic.SetCooldownNormalizedUvs();
+            }
+        }
+        protected void PrepareVisuals()
+        {
+            KillTextTranslator();
+            ApplyLabelType();
+            var button = Button;
+            if (button == null) return;
+            var label = button.buttonLabelText;
+            if (label != null) { label.enableAutoSizing = false; label.fontStyle |= FontStyles.Bold; }
+            var cooldown = button.cooldownTimerText;
+            if (cooldown != null) { cooldown.enableAutoSizing = false; cooldown.fontStyle |= FontStyles.Bold; }
+        }
+        internal virtual void NotifyMeetingStarted()
+        {
+            _config.MeetingStarted?.Invoke();
+        }
+        internal virtual void NotifyMeetingEnded()
+        {
+            if (_config.ResetCooldownAfterMeeting) StartCooldown();
+            _config.MeetingEnded?.Invoke();
+        }
+        public void SetHotkey(KeyCode key) => _config.Hotkey = key;
+        public void InvokeSubAction() => HandleSubClick();
+        private void UpdateKeyHint()
+        {
+            var button = Button;
+            if (button == null || button.buttonLabelText == null) return;
+            bool show = _config.ShowKeyHint && _config.Hotkey != KeyCode.None;
+            if (_keyHint == null && show)
+            {
+                _keyHint = Object.Instantiate(button.buttonLabelText, _gameObject.transform);
+                _keyHint.gameObject.name = "AbilityKeyHint";
+                _keyHint.transform.localPosition = new Vector3(0.55f, 0.3f, -1f);
+                _keyHint.transform.localScale = Vector3.one * 0.5f;
+                _keyHint.enableAutoSizing = false;
+                _keyHint.fontStyle = FontStyles.Bold;
+            }
+            if (_keyHint == null) return;
+            _keyHint.gameObject.SetActive(show);
+            if (show) _keyHint.text = _config.Hotkey.ToString();
+        }
     }
 }

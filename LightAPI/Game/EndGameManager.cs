@@ -1,76 +1,121 @@
-using HarmonyLib;
+using System;
+using System.Linq;
 using LightInDark.Core;
+using LightInDark.Events;
+using LightInDark.RPCs;
 
-namespace LightInDark.Game
+namespace LightInDark.Game;
+
+/// <summary>Host-only, once-per-round ending with a result replicated to every client.</summary>
+public static class EndGameManager
 {
-    /// <summary>
-    /// 模组结束原因管理器。
-    /// 通过 <see cref="TryEndGame"/> 以模组自定义原因结束一局；
-    /// <see cref="GameEndPatch"/>（在 AmongUsClient.OnGameEnd）会读取当前原因驱动结算/复盘。
-    /// </summary>
-    public static class EndGameManager
+    public static GameEndReason CurrentReason { get; private set; } = GameEndReason.None;
+    public static string CustomWinnerCode { get; private set; }
+    public static VictoryResult Result { get; private set; }
+    public static bool IsEnding { get; private set; }
+    public static bool IsGameActive { get; private set; }
+    public static event Action<VictoryResult> ResultReceived;
+    public static Func<bool> AutomaticEndBlocked { get; set; }
+    private static bool _forceEndRequested;
+
+    public static void OnNewGameStart()
     {
-        /// <summary>当前生效的结束原因（本轮游戏）。</summary>
-        public static GameEndReason CurrentReason { get; private set; } = GameEndReason.None;
+        IsGameActive = true;
+        IsEnding = false;
+        _forceEndRequested = false;
+        CurrentReason = GameEndReason.None;
+        CustomWinnerCode = null;
+        Result = null;
+    }
+    public static void OnGameEnded() => IsGameActive = false;
+    public static void Reset() { OnNewGameStart(); IsGameActive = false; }
 
-        private static bool _gameActive;
+    public static void TryEndGame(GameEndReason reason)
+    {
+        var context = VictoryRuntime.Capture(reason);
+        var result = EndGameReasonHelper.IsCustomWin(reason)
+            ? VictoryRules.ForTeam(context, CustomWinnerCode ?? "", reason)
+            : VictoryRules.EvaluateStandard(context);
+        if (result != null) TryEndGame(result, reason == GameEndReason.Invalid);
+    }
 
-        /// <summary>新一轮开始（GameManager.StartGame 时调用重置状态）。</summary>
-        public static void OnNewGameStart()
+    /// <summary>force bypasses mode/debug gates. Returns true when the host sent the end.</summary>
+    public static bool TryEndGame(VictoryResult result, bool force = false)
+    {
+        var client = AmongUsClient.Instance;
+        var vanilla = global::GameManager.Instance;
+        if (result == null || client == null || !client.AmHost || vanilla == null
+            || client.GameState != InnerNet.InnerNetClient.GameStates.Started
+            || !IsGameActive || IsEnding || Result != null) return false;
+        if (!force && (!GameModeManager.AllowAutomaticEnd || (AutomaticEndBlocked?.Invoke() ?? false))) return false;
+        try
         {
-            _gameActive = true;
-            CurrentReason = GameEndReason.None;
-            CustomWinnerCode = null;
-        }
-
-        /// <summary>
-        /// 以自定义原因结束一局。
-        /// 内部调用原版 <see cref="GameManager.RpcEndGame"/> 触发结算流程（占位用 CrewmatesByVote），
-        /// 结束原因由本类记录，结算补丁读取模组原因。
-        /// </summary>
-        public static void TryEndGame(GameEndReason reason)
-        {
-            try
+            var context = VictoryRuntime.Capture(result.Reason);
+            result = VictoryRuntime.FinalizeWinners(context, VictoryRules.Normalize(context, result));
+            var ev = new GameTryEndEvent
             {
-                if (!_gameActive)
-                {
-                    LightLogger.LogWarning("[EndGameManager] 尝试在非游戏状态下结束，忽略。");
-                    return;
-                }
-                CurrentReason = reason;
-                _forceEndRequested = true;
-                global::GameManager.Instance?.RpcEndGame(GameOverReason.CrewmatesByVote, true);
-                _forceEndRequested = false;
-            }
-            catch (System.Exception ex)
-            {
-                LightLogger.LogError("[EndGameManager.TryEndGame]", ex);
-            }
-        }
-
-        public static void MarkInvalid()
-        {
-            CurrentReason = GameEndReason.Invalid;
-        }
-
-        public static string CustomWinnerCode { get; private set; }
-
-        public static void MarkCustomWin(string winnerCode)
-        {
-            CustomWinnerCode = winnerCode;
-            CurrentReason = GameEndReason.CustomWin;
-        }
-
-        private static bool _forceEndRequested;
-
-        public static bool ConsumeForceEnd()
-        {
-            if (!_forceEndRequested) return false;
-            _forceEndRequested = false;
+                CrewmatesWin = result.TeamCode == Configuration.RoleCategory.Crewmate.ToString(),
+                ImpostorsWin = result.TeamCode == Configuration.RoleCategory.Impostor.ToString(),
+                Reason = result.Reason.ToString()
+            };
+            EventSystem.RunEvent(ev);
+            if (!force && ev.IsCanceled) return false;
+            IsEnding = true;
+            _forceEndRequested = force;
+            RpcDefinitions.SyncVictory(result.Reason, result.TeamCode, result.WinnerIds.ToArray());
+            vanilla.RpcEndGame(ToVanillaReason(result.Reason), false);
+            IsGameActive = false;
             return true;
         }
-
-        /// <summary>读取当前结束原因，若从未设置则返回 None。</summary>
-        public static GameEndReason GetCurrentReason() => CurrentReason;
+        catch (Exception ex)
+        {
+            Result = null;
+            CurrentReason = GameEndReason.None;
+            CustomWinnerCode = null;
+            LightLogger.LogError("[EndGameManager.TryEndGame]", ex);
+            return false;
+        }
+        finally { IsEnding = false; _forceEndRequested = false; }
     }
+
+    internal static void ApplyResult(GameEndReason reason, string teamCode, byte[] winners)
+    {
+        if (Result != null) return;
+        Result = new VictoryResult(reason, teamCode, winners);
+        CurrentReason = reason;
+        CustomWinnerCode = EndGameReasonHelper.IsCustomWin(reason) ? teamCode : null;
+        if (ResultReceived == null) return;
+        foreach (Action<VictoryResult> handler in ResultReceived.GetInvocationList())
+        {
+            try { handler(Result); }
+            catch (Exception ex) { LightLogger.LogError("[EndGameManager] ResultReceived", ex); }
+        }
+    }
+    public static void MarkInvalid() => CurrentReason = GameEndReason.Invalid;
+    public static void MarkCustomWin(string winnerCode) => CustomWinnerCode = winnerCode;
+    public static bool ConsumeForceEnd()
+    {
+        if (!_forceEndRequested) return false;
+        _forceEndRequested = false;
+        return true;
+    }
+    public static GameEndReason GetCurrentReason() => CurrentReason;
+    public static GameEndReason FromVanillaReason(GameOverReason reason) => reason switch
+    {
+        GameOverReason.CrewmatesByTask => GameEndReason.CrewmatesByTasks,
+        GameOverReason.ImpostorsBySabotage => GameEndReason.ImpostorsBySabotage,
+        GameOverReason.ImpostorsByVote => GameEndReason.ImpostorsByVote,
+        GameOverReason.ImpostorsByKill => GameEndReason.ImpostorsByKill,
+        GameOverReason.ImpostorDisconnect => GameEndReason.CrewmatesByDisconnect,
+        GameOverReason.CrewmateDisconnect => GameEndReason.ImpostorsByDisconnect,
+        _ => GameEndReason.CrewmatesByVote
+    };
+    private static GameOverReason ToVanillaReason(GameEndReason reason) => reason switch
+    {
+        GameEndReason.CrewmatesByTasks => GameOverReason.CrewmatesByTask,
+        GameEndReason.ImpostorsBySabotage => GameOverReason.ImpostorsBySabotage,
+        GameEndReason.ImpostorsByVote => GameOverReason.ImpostorsByVote,
+        GameEndReason.ImpostorsByKill or GameEndReason.ImpostorsByDisconnect => GameOverReason.ImpostorsByKill,
+        _ => GameOverReason.CrewmatesByVote
+    };
 }

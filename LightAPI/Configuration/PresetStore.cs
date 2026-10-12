@@ -136,6 +136,9 @@ public static class PresetStore
     /// <summary>标脏。**从任何线程调用都安全**，不做 IO。</summary>
     public static void MarkDirty() => _dirty = true;
 
+    /// <summary>当前设置尚未落盘，或去抖写入仍在进行；此时不能用旧文件覆盖内存设置。</summary>
+    public static bool HasPendingChanges => _dirty || Volatile.Read(ref _writing) != 0;
+
     /// <summary>立刻同步写一次（关游戏、切场景等需要"保证落盘"的时机调）。</summary>
     public static void FlushNow()
     {

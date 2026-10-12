@@ -13,6 +13,25 @@ namespace LightInDark.RPCs
     /// </summary>
     public static class RpcDefinitions
     {
+        [LidRPC(OnlyHost = true)]
+        public static void SyncVictory(GameEndReason reason, string teamCode, byte[] winnerIds)
+            => Game.EndGameManager.ApplyResult(reason, teamCode, winnerIds);
+
+        [LidRPC(OnlyHost = true)]
+        public static void SyncGameMode(string modeId) => GameModeManager.ApplyRemote(modeId);
+
+        [LidRPC]
+        public static void RequestFreePlayRole(byte playerId, string roleCode)
+        {
+            var client = AmongUsClient.Instance;
+            if (client == null || !client.AmHost || !GameModeManager.IsRoundActive
+                || !GameModeManager.AllowRoleChanges) return;
+            byte sender = CustomRPC.CurrentSender;
+            if (sender == byte.MaxValue && PlayerControl.LocalPlayer != null) sender = PlayerControl.LocalPlayer.PlayerId;
+            if (sender != playerId) return;
+            var role = RoleRegistry.GetByName(roleCode);
+            if (role != null) SetRoleByCode(playerId, role.CodeName, null);
+        }
         // ============ 角色同步 ============
 
         /// <summary>
@@ -125,9 +144,10 @@ namespace LightInDark.RPCs
             //   ⚠️ 刻意放在这个**共用落地函数**里，而不是只写在 SetRole 里：
             //      早到的职业 RPC 是走 FlushPendingRoles → ApplyRole 重放的，
             //      写在上面就会让"重放的那批玩家"漏掉这一步。
-            if (definedRole.RoleCategory == Configuration.RoleCategory.Neutral
-                && gamePlayer.Control?.Data?.Role != null)
-                gamePlayer.Control.Data.Role.TasksCountTowardProgress = false;
+            if (gamePlayer.Control != null && gamePlayer.Control.Data != null && gamePlayer.Control.Data.Role != null)
+                gamePlayer.Control.Data.Role.TasksCountTowardProgress = definedRole.IsGhostRole
+                    ? gamePlayer.VictoryRole?.CountsTasksTowardVictory ?? definedRole.CountsTasksTowardVictory
+                    : definedRole.CountsTasksTowardVictory;
 
             EventTriggers.OnPlayerRoleSet(gamePlayer.Control, gamePlayer.Role);
         }
@@ -340,7 +360,7 @@ namespace LightInDark.RPCs
             }
         }
 
-        [LidRPC]
+        [LidRPC(OnlyHost = true)]
         public static void ForceEndGameInvalid()
         {
             LightInDark.Game.EndGameManager.MarkInvalid();

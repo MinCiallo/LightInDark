@@ -111,13 +111,22 @@ namespace LightInDark.Events
     [HarmonyPatch(typeof(GameManager), nameof(GameManager.RpcEndGame))]
     public static class EndGamePatch
     {
-        public static void Prefix(GameManager __instance, GameOverReason endReason, bool showAd)
+        [HarmonyPriority(Priority.Last)]
+        public static void Prefix(GameManager __instance, GameOverReason endReason, bool showAd, bool __runOriginal)
         {
             try
             {
                 string reason = endReason.ToString();
+                if (!__runOriginal) return;
                 bool impWin = IsImpostorWin(endReason);
-                EventTriggers.OnGamePreEnd(!impWin, impWin, reason);
+                var result = LightInDark.Game.EndGameManager.Result;
+                if (result != null)
+                {
+                    reason = result.Reason.ToString();
+                    impWin = result.TeamCode == Configuration.RoleCategory.Impostor.ToString();
+                }
+                bool crewWin = result != null ? result.TeamCode == Configuration.RoleCategory.Crewmate.ToString() : !impWin;
+                EventTriggers.OnGamePreEnd(crewWin, impWin, reason);
             }
             catch (Exception ex)
             {

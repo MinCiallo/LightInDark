@@ -19,7 +19,7 @@ namespace Light.Patches;
 ///     分割线顶部在按钮中心、底部向左偏移，形成斜向划分；
 ///   · 按钮上方显示原版倒计时文本（GameStartText）；
 ///   · 取消=红色，跳过=淡金色（ModGolden）。
-/// 跳过使用与原版倒计时归零完全一致的开局路径（BeginGame），避免绕过主机校验导致黑屏卡死。
+/// 跳过重新检查房主、人数和握手后调用原版倒计时结束入口 FinallyBegin。
 /// </summary>
 [HarmonyPatch(typeof(GameStartManager))]
 public static class GameStartCountdownPatch
@@ -113,8 +113,6 @@ public static class GameStartCountdownPatch
                     var gsm = GameStartManager.Instance;
                     if (gsm == null) return;
 
-                    int playerCount = PlayerControl.AllPlayerControls?.Count ?? 0;
-
                     // 愚人节恶作剧：使用旧的 ReallyBegin(false) 逻辑（会触发原生流转把
                     // 倒计时重置回 5 秒，假装跳过了但其实没有）。
                     if (LightUtils.IsAprilDay())
@@ -123,14 +121,8 @@ public static class GameStartCountdownPatch
                         return;
                     }
 
-                    // 触发“房主跳过倒计时”事件
-                    EventTriggers.OnLobbySkipCountdown(playerCount);
-
-                    // 正常逻辑：直接调用 BeginGame()，这与原版倒计时归零时原生 Update 所走的
-                    // 完整开局路径完全一致（BeginGame -> 主机校验 -> ReallyBegin -> CoStartGame -> FinallyBegin）。
-                    // 不要单独调用 ReallyBegin/FinallyBegin：那样会跳过主机校验与船只生成，
-                    // 导致“进了游戏但没进”（黑屏、设置键仍可用）。
-                    gsm.BeginGame();
+                    // BeginGame checks NotStarting; calling it during Countdown cannot skip the timer.
+                    GameModeLobbyPatch.TrySkipCountdown(gsm);
                 }
                 catch (Exception ex)
                 {
@@ -352,43 +344,3 @@ public static class LobbyCancelStartPatch
         }
     }
 }
-
-#if DEBUG
-/// <summary>
-/// DEBUG 下允许使用 1 名玩家即可开始游戏（参考 Nebula Free-Play / TownOfNext）。
-/// 仅在 DEBUG 编译构建时启用。
-/// </summary>
-[HarmonyPatch(typeof(GameStartManager))]
-public static class DebugMinPlayersPatch
-{
-    [HarmonyPatch(nameof(GameStartManager.Start))]
-    [HarmonyPostfix]
-    public static void StartPostfix(GameStartManager __instance)
-    {
-        try
-        {
-            if (!AmongUsClient.Instance?.AmHost ?? true) return;
-            __instance.MinPlayers = 1;
-        }
-        catch (Exception ex)
-        {
-            LightLogger.LogWarning("[DebugMinPlayersPatch.Start] " + ex.Message);
-        }
-    }
-
-    [HarmonyPatch(nameof(GameStartManager.Update))]
-    [HarmonyPostfix]
-    public static void UpdatePostfix(GameStartManager __instance)
-    {
-        try
-        {
-            if (!AmongUsClient.Instance?.AmHost ?? true) return;
-            __instance.MinPlayers = 1;
-        }
-        catch (Exception ex)
-        {
-            LightLogger.LogWarning("[DebugMinPlayersPatch.Update] " + ex.Message);
-        }
-    }
-}
-#endif
