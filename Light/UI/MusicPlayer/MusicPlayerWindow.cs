@@ -1034,7 +1034,7 @@ public sealed class MusicPlayerWindow : MonoBehaviour
                 new Vector3(ListCenterX, ListCenterY, -0.2f),
                 0.95f, FontStyles.Normal, TextAlignmentOptions.Center, TextDim,
                 width: ListSize.x - 0.4f, height: ListSize.y - 0.3f, wrap: true);
-            if (_emptyText != null) _emptyText.gameObject.SetActive(false);
+            _emptyText?.gameObject.SetActive(false);
 
             // ---- 翻页：三条在右栏里等距排开 ----
             float navLeft = ListCenterX - ListSize.x * 0.5f;     // 右栏左边缘

@@ -47,6 +47,10 @@ internal static class HudLayoutConfigRegistrar
                 LightInDark.Language.Language.Translate("config.hud.buttonArrangement.detail",
                     "0 = 默认；1 = 只把左侧那一列抬高；2 = 全部抬高（按钮多时不和原版按钮挤在一起）"));
 
+            // ⚠️ 地图配色**不在这里注册** ✓ —— 用户 2026-10-16 明确要求"要注册到 option Light 页签里" ✓
+            //    → 它走 `LightOptionsRegistry`（设置菜单 → Light 页签 ✓，存 `LightSettings.MapColor` ✓），
+            //      生效在 `Light\Patches\MapColorPatch.cs` ✓ —— **只留这一个入口** ✓，避免两处各配一份 ✗
+
             LightLogger.Log("[HudLayoutConfigRegistrar] HUD 布局设置注册完成（小 HUD / 按钮排列，默认 = 现状）");
         }
         catch (Exception ex)

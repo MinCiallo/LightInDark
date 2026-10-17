@@ -32,6 +32,12 @@ public static class LightSettings
         /// </summary>
         public bool ShowTaskPanelInMeeting { get; set; } = true;
         /// <summary>
+        /// 地图配色来源（用户 2026-10-16 要求 ✓）：
+        ///   0 = **职业颜色**（默认 ✓）· 1 = 玩家颜色 · 2 = 原版不染色 ✓
+        /// 读取方：`Light\Patches\MapColorPatch.cs` ✓；设置入口：**设置菜单 → Light 页签** ✓
+        /// </summary>
+        public int MapColor { get; set; } = 0;
+        /// <summary>
         /// 最高帧数上限 最多为150
         /// </summary>
         public int MaxFPS { get; set; } = 60;

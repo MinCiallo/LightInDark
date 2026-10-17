@@ -66,6 +66,7 @@ public class Caller : RoleTemplate
                     .SetCooldown(5f)
                     .SetOnClickSFX("./Resources/SFX/CallerUse.mp3"),
                     () => LightLogger.Log("[Caller] 效果触发(示例)"));
+                
             }
             catch (Exception ex)
             {

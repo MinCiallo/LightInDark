@@ -16,6 +16,8 @@ internal class LightOptionsRegistry
     static LightOptionButton? _reloadConfig;
     static LightOptionButton? _showTaskPanelInMeeting;
     static LightOptionButton? _cursorIdx;
+    /// <summary>地图颜色选择器（0 职业 / 1 玩家 / 2 原版 ✓，存 `LightSettings.MapColor` ✓）</summary>
+    static LightOptionButton? _mapColor;
     static LightOptionButton? _autoCheckUpdate;
     static LightOptionButton? _handshakeEnabled;
     static LightOptionButton? _handshakeMode;
@@ -87,6 +89,21 @@ internal class LightOptionsRegistry
                 LightSettings.ReloadConfig();
             }, "启动时自动比对云端版本");
 
+        // ★ 地图颜色（用户 2026-10-16 要求 ✓："让玩家在 option 改 职业/玩家/原版，默认职业" ✓）
+        //   存取走 `LightSettings.MapColor` ✓（和"鼠标样式 / 会议任务面板"同一条路 ✓，只有这一个真相来源 ✓）
+        //   生效在 `Light\Patches\MapColorPatch.cs` ✓（挂 `MapBehaviour.Show` ✓）
+        _mapColor = SettingsTabPatch.AddSelectorButton(
+            "地图颜色", ["职业颜色", "玩家颜色", "原版"],
+            s.MapColor, idx =>
+            {
+                var cur = LightPlugin.LightSettingsData ??= new LightSettings.LightSettingsData();
+                cur.MapColor = idx;
+                LightSettings.Save(cur);
+                LightSettings.ReloadConfig();
+            },
+            "开地图时给地图染色：职业颜色（默认）= 自己职业的颜色；玩家颜色 = 自己选的颜色；" +
+            "原版 = 不染色。管理员桌（人数视图）与破坏视图不受影响——它们的颜色本身是信息");
+
         // 握手验证（设置块 lid.handshake）
         SettingsTabPatch.AddEmptyButton("握手验证");
         _handshakeEnabled = SettingsTabPatch.AddToggleButton(
@@ -141,6 +158,7 @@ internal class LightOptionsRegistry
         SyncSelector(_cursorIdx, Cursor.Index);
         SyncSelector(_handshakeMode, s.HandshakeMode);
         SyncSelector(_handshakeTimeout, TimeoutToIndex(s.HandshakeTimeoutSeconds));
+        SyncSelector(_mapColor, s.MapColor);
 
         SettingsTabPatch.Refresh();
     }

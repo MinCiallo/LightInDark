@@ -2465,7 +2465,13 @@ namespace Light.UI.Config
                 //     不接回来 = 原版事后 `OpenMenu/OpenChancesTab/OnEnable→Initialize`
                 //     把原版页签重新 `SetActive(true)` 时**没有任何人压制** ✗✗
                 //     （状态差量：没漏时一个字节都不写 ✓）
-                Light.Patches.GameSettingMenuPatch.TickTabGuard();
+                //  ★★★ 2026-10-11 晚 **再次停用** ✓✓（用户实测：外泄已被正式机制修好 ✓）
+                //     我这轮曾把它重新接上（还额外加每帧驱动 `GameSettingMenuTickPatch` +
+                //     `OnEnable` 再断言 ✗），结果那套**广谱压制误伤了不属于页签的对象** ✗✗：
+                //       · 保存预设窗口的输入框消失 ✗
+                //       · 原版设置页的**地图预览**消失 ✗
+                //     → 全部停用 ✓，只保留正式机制（登记式时序 + `ShouldHandleCreateSettings` ✓）
+                //   Light.Patches.GameSettingMenuPatch.TickTabGuard();
 
                 // ★★ 2026-10-10：泄漏取证（一次性，最多 3 次 ✓）——
                 //    把"当前 MOD 页签上**还激活**的原版选项行"是谁打印出来 ✓

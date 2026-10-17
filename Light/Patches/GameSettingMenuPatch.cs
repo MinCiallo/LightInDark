@@ -1162,47 +1162,6 @@ public static class GameSettingMenuPatch
     }
 
     /// <summary>
-    /// ★★ 2026-10-11 **真正的每帧驱动**（用户报的两条外泄的根治点 ✓✓）
-    ///
-    /// ═══════════════════════════════════════════════════════════════════════
-    /// 【为什么必须有它】`TickTabGuard` 的注释一直写着"由 `ConfigUIPanel.Refresh`（每帧都会跑）调用" ✗
-    ///   —— **那句话是错的** ✗✗。查遍全工程，`ConfigUIPanel.Refresh()` 只有两个调用点：
-    ///     · `ConfigRowPatches.cs:323` —— **行值变化时**（点 +/- 号）✗ 事件驱动
-    ///     · `ConfigUIPanel.cs:3430`  —— Build / Show 时 ✗
-    ///   没有任何每帧驱动 ✗ → 所谓"每帧守卫"**几乎从不运行** ✓✓
-    ///
-    ///   这一条同时解释了用户报的两个 bug：
-    ///     ① 点阵营页签 → 全程没人压制 → 原版设置外泄 ✓
-    ///     ② "**调职业最大数量时**……错位外泄" —— 因为点 +/- **正好**是唯一会触发 Refresh 的时机 ✓
-    ///        → 守卫**恰好在原版重排的中途**跑起来乱压 ✗ = 用户说的"错位" ✓✓
-    ///
-    /// 【为什么挂 `HudManager.Update`】它是工程里现成的"大厅里每帧都会跑"的钩子 ✓
-    ///   （`GameSettingMenu` 是**大厅**菜单 `PlayerOptionsMenu(Clone)` ✓，HudManager 一定在 ✓）
-    ///   而且状态差量：没漏时**一个字节都不写** ✓，开销可忽略 ✓
-    ///
-    /// 【与 TONE 的关系】TONE（`Patches\GameSettingMenuPatch.cs`）不需要这种守卫 ✓ ——
-    ///   它 `OnEnablePrefix` 直接 `return false` **接管**了原版 OnEnable ✓，原版压根没机会重新点亮 ✗
-    ///   我们走的是 A 方案（不换架构 ✓）→ 保留原版 OnEnable，但**每帧把不该亮的压回去** ✓✓
-    /// ═══════════════════════════════════════════════════════════════════════
-    /// </summary>
-    [HarmonyPatch(typeof(HudManager), nameof(HudManager.Update))]
-    public static class GameSettingMenuTickPatch
-    {
-        public static void Postfix()
-        {
-            try
-            {
-                if (_menuInstance == null) return;   // 菜单没开 → 什么都不做 ✓
-                TickTabGuard();
-            }
-            catch (Exception ex)
-            {
-                LightLogger.LogDebug($"[GameSettingMenuPatch.Tick] {ex.Message}");
-            }
-        }
-    }
-
-    /// <summary>
     /// ★ 照 TONE 的思路补的第二个入口（用户提示的第②处缺口 ✓）：
     ///   原版 `OnEnable` 一跑就会把页签/内容**重新点亮** ✗ → 在它**之后**立刻再压一次 ✓
     ///
@@ -1213,10 +1172,13 @@ public static class GameSettingMenuPatch
     [HarmonyPostfix]
     public static void OnEnablePostfix(GameSettingMenu __instance)
     {
+        // ★★ 2026-10-11 晚 **停用** ✓✓ —— 与 `GameSettingMenuTickPatch` 同一个原因：
+        //    每帧/每次 OnEnable 的广谱压制会误伤 `MainArea` 下的非页签对象 ✗
+        //    （预设保存窗口输入框 ✗、原版地图预览 ✗）→ 只记菜单实例，不再压制 ✓
         try
         {
             _menuInstance = __instance;
-            TickTabGuard();      // 原版刚点亮的东西 → 立刻压回去 ✓
+            // TickTabGuard();   ← 已停用 ✓
         }
         catch (Exception ex)
         {
@@ -1278,13 +1240,16 @@ public static class GameSettingMenuPatch
             fixedCount += SuppressNonModPagesUnderMainArea(menu);
 
             // ① 三个原版页签一个都不该亮 ✓（我们有自己的 6 个克隆菜单 ✓）
-            //    ⚠️⚠️ 2026-10-11 **必须走书签登记** ✓✓（原来用的是裸 `HideIfActive` ✗）：
-            //       `HideIfActive` 只 `SetActive(false)` ✗，不告诉 `ConfigUIPanel` "这是我藏的" ✗
-            //       → 切回"游戏设置"页签时 `RestoreVanillaState()` 只还原**登记过的** ✗
-            //         → `GameSettingsTab` 永远回不来 = 用户报的"游戏设置一片空白" ✓✓
-            fixedCount += HideAndRemember(menu.PresetsTab?.gameObject, "PresetsTab");
-            fixedCount += HideAndRemember(menu.GameSettingsTab?.gameObject, "GameSettingsTab");
-            fixedCount += HideAndRemember(menu.RoleSettingsTab?.gameObject, "RoleSettingsTab");
+            //  ⚠️ 2026-10-11 晚：这里曾改成 `HideAndRemember`（带书签登记）✗，现**撤回** ✓ ——
+            //     用户实测「外泄已经修好 ✓」→ 说明**正式机制是登记式时序那条路**
+            //     （`ConfigUIPanel.ShouldHandleCreateSettings` ✓ + inactive 父级下克隆登记 ✓）；
+            //     我加的那套每帧广谱压制反而**误伤了不属于页签的东西** ✗✗：
+            //       · 保存预设窗口的输入框消失 ✗
+            //       · 原版设置页的**地图预览**消失 ✗
+            //     （两者都在 `MainArea` 下 ✓ → 被"只留我们自己的页"那条判定一起压掉 ✓）
+            fixedCount += HideIfActive(menu.PresetsTab?.gameObject, "PresetsTab");
+            fixedCount += HideIfActive(menu.GameSettingsTab?.gameObject, "GameSettingsTab");
+            fixedCount += HideIfActive(menu.RoleSettingsTab?.gameObject, "RoleSettingsTab");
 
             // ② 其它克隆菜单也不该亮 ✓（只留当前那个 ✓）
             var cur = _currentTab >= 0 && _currentTab < _tabMenus.Length ? _tabMenus[_currentTab] : null;
@@ -1373,29 +1338,31 @@ public static class GameSettingMenuPatch
             {
                 var child = mainArea.GetChild(i);
                 if (child == null) continue;
+
+                // ★★ 2026-10-11 晚 **收回广谱判定** ✓✓ —— 只认我们自己克隆的页签菜单
+                //    （`LightTabMenu_*` ✓），其余 `MainArea` 下的东西一律**不碰** ✓✓
+                //    原因（用户实测）：广谱判定会连"不属于页签"的对象一起压掉 ✗✗ ——
+                //      · 保存预设窗口的输入框消失 ✗
+                //      · 原版设置页的**地图预览**消失 ✗
+                //    而用户已确认「外泄修好了 ✓」→ 说明正式机制（登记式时序 ✓）本身够用 ✓，
+                //    不需要这里"只留我们自己的页"这种粗暴做法 ✗
+                if (!child.name.StartsWith("LightTabMenu_", StringComparison.Ordinal)) continue;
+
                 if (!child.gameObject.activeSelf) continue;      // 已经藏着 → 一个字节都不写 ✓
 
-                // 该留的（我们自己的页 / 当前页签菜单 / 它们的祖先）→ 绝不碰 ✓
-                if (ShouldKeep(child)) continue;
+                // 当前页签那一份要留着用 ✓
+                if (cur != null && child.gameObject == cur.gameObject) continue;
 
-                // ★ 例外：原版 `GameSettingsTab` / `PresetsTab` 这两支由 `TickTabGuard` 的
-                //   ①号规则**登记着**关 ✓（同一个书签表 ✓）→ 这里跳过，避免重复登记 ✓
-                if (_suppressLogs < 8 && child.name.StartsWith("LightTabMenu_", StringComparison.Ordinal))
+                Light.UI.Config.ConfigUIPanel.RememberHiddenForRestore(child.gameObject);
+                child.gameObject.SetActive(false);
+                n++;
+
+                if (_suppressLogs < 8)
                 {
                     _suppressLogs++;
                     LightLogger.Log($"[GameSettingMenuPatch] 关掉了没在用的页签菜单 '{child.name}' ✓" +
                                     "（它里面克隆自带的原版行会漏到别的页上 ✗）");
                 }
-                else if (_suppressLogs < 8)
-                {
-                    _suppressLogs++;
-                    LightLogger.Log($"[GameSettingMenuPatch] 关掉了 MainArea 下漏出来的 '{child.name}' ✓" +
-                                    "（点阵营页签时的原版设置外泄就是这个 ✗）");
-                }
-
-                Light.UI.Config.ConfigUIPanel.RememberHiddenForRestore(child.gameObject);
-                child.gameObject.SetActive(false);
-                n++;
             }
         }
         catch (Exception ex)
