@@ -96,8 +96,7 @@ function resolveBoolean(node, inputName, fallback) {
 }
 
 function resolvePlayer(node, inputName, fallback) {
-    var src = getLinkedSourceNode(node, inputName);
-    if (src && nodeKey(src) === 'val/player') return String(nodeProp(src, 'MyPlayer', 'MyPlayer'));
+    // 不特判 val/player：统一走 EMIT 的 expr（Killer/Victim/Reporter → e.X），避免两处真相
     var e = linkedExpr(node, inputName);
     if (e != null) return e;
     return (fallback != null) ? fallback : 'MyPlayer';

@@ -494,6 +494,53 @@ function registerAllNodes() {
         this.size = [180, 90];
     }, C.val.fg, C.val.bg);
 
+    // ---------- 游戏状态 / 玩家查询（对齐 GameState / Player 静态 API）----------
+    var GAME_STATES = [
+        "IsJoined", "IsNotJoined", "IsFreePlay", "IsOnlineGame", "IsLocalGame", "IsLobby",
+        "AmHost", "IsInGame", "IsInitGame", "IsInMeeting", "IsVoting", "IsMeetingResults",
+        "IsInTask", "IsInIntro", "IsInExile", "IsInMinigame", "IsMapOpen", "IsChatFocused",
+        "IsCountDown", "IsDead", "IsCanMove", "IsInVent", "IsModHost", "IsNormalGame", "IsHideNSeek"
+    ];
+    defNode("val/gameState", "游戏状态", function () {
+        this.addProperty("State", "IsInGame");
+        this.addWidget("combo", "State", "IsInGame", (v) => { this.properties["State"] = v; setTimeout(regenerate, 80); },
+            { values: GAME_STATES });
+        this._propKeys = ["State"];
+        this.addOutput("值", "bool");
+        this.size = [210, 64];
+    }, C.val.fg, C.val.bg);
+
+    defNode("val/isMap", "是否某张地图", function () {
+        this.addProperty("Map", "Skeld");
+        this.addWidget("combo", "Map", "Skeld", (v) => { this.properties["Map"] = v; setTimeout(regenerate, 80); },
+            { values: ["Skeld", "MiraHQ", "Polus", "Dleks", "Airship", "Fungle"] });
+        this._propKeys = ["Map"];
+        this.addOutput("值", "bool");
+        this.size = [200, 64];
+    }, C.val.fg, C.val.bg);
+
+    defNode("val/hostPlayer", "房主玩家", function () {
+        this.addOutput("值", "player");
+        this.size = [180, 60];
+    }, C.val.fg, C.val.bg);
+
+    defNode("val/isHost", "玩家是否房主", function () {
+        this.addInput("玩家", "player");
+        this.addOutput("值", "bool");
+        this.size = [200, 72];
+    }, C.val.fg, C.val.bg);
+
+    defNode("val/playerById", "按ID取玩家", function () {
+        this.addInput("id", "number");
+        this.addOutput("值", "player");
+        this.size = [190, 72];
+    }, C.val.fg, C.val.bg);
+
+    defNode("val/allPlayerCount", "玩家总数", function () {
+        this.addOutput("值", "number");
+        this.size = [180, 60];
+    }, C.val.fg, C.val.bg);
+
     // ---------- 逻辑（扩展）----------
     defNode("logic/math", "数学运算", function () {
         this.addInput("A", "number");

@@ -109,7 +109,17 @@ const EMIT = {
     },
     'val/player': {
         category: 'val', kind: 'data',
-        expr: function (node) { return String(nodeProp(node, 'MyPlayer', 'MyPlayer')); }
+        expr: function (node) {
+            // 事件/生命周期处理方法的形参统一叫 e；btn/kill 的点击回调形参叫 target。
+            // ⚠️ e.Killer / e.Victim / e.Reporter 是原版 PlayerControl，需用 Player.Get 转成本层的 Player
+            //   （下游要取 .Control.PlayerId，直接给 PlayerControl 会编译不过）
+            var v = String(nodeProp(node, 'MyPlayer', 'MyPlayer'));
+            if (v === 'Killer') return 'LightInDark.Game.Player.Get(e.Killer)';
+            if (v === 'Victim') return 'LightInDark.Game.Player.Get(e.Victim)';
+            if (v === 'Reporter') return 'LightInDark.Game.Player.Get(e.Reporter)';
+            if (v === 'Target') return 'target';
+            return 'MyPlayer';
+        }
     },
     'val/bool': {
         category: 'val', kind: 'data',
@@ -466,6 +476,42 @@ const EMIT = {
             return 'new Vector2(' + csNumber(nodeProp(node, 'X', 0)) + 'f, ' +
                 csNumber(nodeProp(node, 'Y', 0)) + 'f)';
         }
+    },
+
+    // ---------- 游戏状态 / 玩家查询（对齐 GameState / Player 静态 API）----------
+    'val/gameState': {
+        category: 'val', kind: 'data',
+        expr: function (node) {
+            return 'LightInDark.Game.GameState.' + sanitizeId(nodeProp(node, 'State', 'IsInGame'));
+        }
+    },
+    'val/isMap': {
+        category: 'val', kind: 'data',
+        expr: function (node) {
+            return 'LightInDark.Game.GameState.IsMap(MapNames.' +
+                sanitizeId(nodeProp(node, 'Map', 'Skeld')) + ')';
+        }
+    },
+    'val/hostPlayer': {
+        category: 'val', kind: 'data',
+        expr: function () { return 'LightInDark.Game.Player.HostPlayer'; }
+    },
+    'val/isHost': {
+        category: 'val', kind: 'data',
+        expr: function (node, ctx) {
+            return '(' + ctx.resolvePlayer(node, '玩家', 'MyPlayer') + ').IsHost';
+        }
+    },
+    'val/playerById': {
+        category: 'val', kind: 'data',
+        expr: function (node, ctx) {
+            return 'LightInDark.Game.Player.Get((byte)(' + ctx.resolveNumber(node, 'id', '0') + '))';
+        }
+    },
+    'val/allPlayerCount': {
+        category: 'val', kind: 'data',
+        imports: ['using System.Linq;'],
+        expr: function () { return 'LightInDark.Game.Player.AllPlayers.Count()'; }
     },
 
     // ---------- 逻辑（扩展）----------

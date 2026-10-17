@@ -19,5 +19,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
     if (typeof initEditors === 'function') initEditors();
     if (typeof initDocs === 'function') initDocs();
+    if (typeof renderChangelog === 'function') renderChangelog();
     waitLG();
 });

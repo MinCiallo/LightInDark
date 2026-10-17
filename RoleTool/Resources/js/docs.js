@@ -144,7 +144,7 @@ var NODE_DOC = {
     },
     'val/player': {
         desc: '一个玩家引用。',
-        usage: '可选：我自己 / 目标 / 凶手 / 受害者 / 报告人。其中"目标""凶手""受害者"等只有在对应事件或"点击"分支里才有意义。'
+        usage: '可选：我自己 / 目标 / 凶手 / 受害者 / 报告人。「凶手」「受害者」「报告人」要在事件或生命周期处理里用（生成代码取 e.Killer / e.Victim / e.Reporter）；「目标」只在击杀按钮的「点击」分支里有效。'
     },
     'val/bool': {
         desc: '一个固定布尔值（真/假）。',
@@ -185,6 +185,30 @@ var NODE_DOC = {
     'val/vector2': {
         desc: '一组 X/Y 坐标值。',
         usage: '配合"传送玩家"的"坐标"端口使用。'
+    },
+    'val/gameState': {
+        desc: '判断当前游戏状态（阶段/环境）是否为选中项，实时读取、不是缓存值。',
+        usage: '常用：IsLobby 在大厅、IsInGame 局内、IsInMeeting 会议中、IsVoting 投票中、IsInTask 任务阶段、IsInIntro 开场动画、IsInExile 放逐动画、IsInMinigame 小游戏、IsMapOpen 地图开着、IsChatFocused 聊天输入中、IsCanMove 能移动、IsInVent 在管道、IsCountDown 倒计时、IsDead 我死了、AmHost 我是房主、IsModHost 房主且跑着本模组、IsFreePlay/IsOnlineGame/IsLocalGame 连接方式、IsNormalGame/IsHideNSeek 模式、IsInitGame 开局建表中、IsMeetingResults 会议结果、IsJoined/IsNotJoined 是否在房间。'
+    },
+    'val/isMap': {
+        desc: '判断当前地图是否为指定的一张。',
+        usage: '可选 Skeld / MiraHQ / Polus / Dleks / Airship / Fungle。'
+    },
+    'val/hostPlayer': {
+        desc: '房主玩家。',
+        usage: '取房主的玩家引用（大厅玩家表建好之后才有值）。'
+    },
+    'val/isHost': {
+        desc: '判断某个玩家是否为房主。',
+        usage: '"玩家"不接时默认判断自己。'
+    },
+    'val/playerById': {
+        desc: '按 PlayerId 取玩家。',
+        usage: '"id"接数值。取不到时结果为 null，要使用它的字段前建议先做判断。'
+    },
+    'val/allPlayerCount': {
+        desc: '当前玩家总数（含已死亡）。',
+        usage: '与"存活人数"区分：这个把死人也算进去。'
     },
 
     // ---------- 逻辑 ----------

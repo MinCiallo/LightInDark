@@ -191,6 +191,22 @@ body {
 .about-box p { color: #b7bECf; }
 .about-version { color: #7d879c; font-size: 13px; }
 
+/* 更新日志（关于页签） */
+.changelog { margin-top: 22px; }
+.cl-title { font-size: 16px; color: #4a90d9; margin: 0 0 12px; }
+.cl-entry {
+  border-left: 3px solid #333a4c;
+  background: #20232f;
+  border-radius: 6px;
+  padding: 10px 14px;
+  margin-bottom: 10px;
+}
+.cl-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 6px; }
+.cl-date { font-size: 12px; color: #7d879c; font-family: Consolas, monospace; }
+.cl-name { font-size: 14px; font-weight: 600; color: #dfe3ee; }
+.cl-items { margin: 0; padding-left: 20px; }
+.cl-items li { color: #b7bECf; font-size: 13px; line-height: 1.75; margin: 3px 0; }
+
 /* 文档 */
 #view-docs.active { display: block; overflow-y: auto; padding: 20px; }
 #docs-toolbar { max-width: 980px; margin-bottom: 14px; }

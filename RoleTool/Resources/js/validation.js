@@ -266,6 +266,85 @@ function _vCollect() {
         });
     });
 
+    // 12. 「玩家」节点的上下文相关选项（Killer/Victim/Reporter/Target）
+    //     生成代码里它们分别取自事件形参 e 的成员 / 击杀回调的 target，
+    //     而哪些成员存在取决于所处的事件类型（详见契约文档）。
+    var EVENT_PLAYER_MEMBERS = {
+        PlayerDeathEvent: ['Player', 'Killer'],
+        PlayerReviveEvent: ['Player', 'Healer'],
+        PlayerExileEvent: ['Exiled'],
+        MeetingStartEvent: ['Reporter'],
+        MeetingEndEvent: [],
+        PlayerMurderEvent: ['Player', 'Killer', 'Victim'],
+        PlayerTryMurderEvent: ['Player', 'Killer', 'Victim'],
+        PlayerVoteEvent: ['Player', 'Voter', 'VoteFor'],
+        VentUsedEvent: ['Player']
+    };
+    var LIFE_EVENT = {
+        'life/onDied': 'PlayerDeathEvent',
+        'life/onRevived': 'PlayerReviveEvent',
+        'life/onExiled': 'PlayerExileEvent',
+        'life/onMeetingStarted': 'MeetingStartEvent',
+        'life/onMeetingEnded': 'MeetingEndEvent'
+    };
+    var ACCESSOR_EVENTS = {
+        Killer: ['PlayerDeathEvent', 'PlayerMurderEvent', 'PlayerTryMurderEvent'],
+        Victim: ['PlayerMurderEvent', 'PlayerTryMurderEvent'],
+        Reporter: ['MeetingStartEvent']
+    };
+
+    var revAdj = {};
+    links.forEach(function (l) {
+        if (!l) return;
+        (revAdj[l.target_id] = revAdj[l.target_id] || []).push(l.origin_id);
+    });
+    // 从某节点沿上游（反向连线）找最近的处理方法入口
+    function rootOf(startId) {
+        var seen = {}, queue = (revAdj[startId] || []).slice();
+        queue.forEach(function (id) { seen[id] = true; });
+        while (queue.length) {
+            var cur = queue.shift();
+            var n = idMap[cur];
+            var t = n ? _vType(n) : '';
+            if (t.indexOf('life/') === 0 || t.indexOf('ev/') === 0 || t === 'btn/kill') return t;
+            (revAdj[cur] || []).forEach(function (id) { if (!seen[id]) { seen[id] = true; queue.push(id); } });
+        }
+        return '';
+    }
+
+    nodes.forEach(function (n) {
+        if (_vType(n) !== 'val/player') return;
+        var opt = String((n.properties && n.properties['MyPlayer']) || 'MyPlayer');
+        if (opt === 'MyPlayer') return;
+
+        var consumers = [];
+        links.forEach(function (l) { if (l && l.origin_id === n.id) consumers.push(l.target_id); });
+        if (!consumers.length) return;   // 未使用：由「孤立节点」检查覆盖
+
+        var root = '';
+        consumers.forEach(function (cid) { if (!root) root = rootOf(cid); });
+        if (!root) { warnings.push('「玩家」节点的「' + opt + '」无法确定所处的事件上下文'); return; }
+
+        if (opt === 'Target') {
+            if (root !== 'btn/kill') {
+                errors.push('「玩家」的「目标」只能在击杀按钮的「点击」分支里使用（当前在 ' + root + '）');
+            }
+            return;
+        }
+
+        var evType = (root.indexOf('ev/') === 0 && typeof EMIT !== 'undefined' && EMIT[root])
+            ? EMIT[root].event : (LIFE_EVENT[root] || '');
+        if (!evType) {
+            errors.push('「玩家」的「' + opt + '」需要事件上下文，当前在 ' + root + ' 里不可用');
+            return;
+        }
+        if ((ACCESSOR_EVENTS[opt] || []).indexOf(evType) < 0) {
+            var mem = EVENT_PLAYER_MEMBERS[evType] || [];
+            errors.push('「玩家」的「' + opt + '」在 ' + evType + ' 里不存在（可用：' +
+                (mem.length ? mem.join(' / ') : '无玩家成员') + '）');
+        }
+    });
+
     // 10. 翻译完整性
     if (!String(meta.roleName || '').trim() && !String(meta.roleNameEn || '').trim()) {
         errors.push('职业名(中文)与职业名(EN)至少填写一项');
