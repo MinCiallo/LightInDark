@@ -14,6 +14,8 @@ public class Impostor : RoleTemplate
     public override RoleCategory RoleCategory => RoleCategory.Impostor;
     public override bool CanBeAssigned => false; // 仅作兜底，不参与随机分配
 
+    public override LightInDark.Color Color => LightInDark.Color.ImpostorColor;
+
     public override RuntimeRoleTemplate CreateRuntime(PlayerControl owner)
         => new RuntimeInstance(owner, this);
 

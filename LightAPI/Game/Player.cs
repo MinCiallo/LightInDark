@@ -86,6 +86,160 @@ namespace LightInDark.Game
         public Player MyPlayer => this;
         public bool AmOwner => IsLocal;
 
+        // =====================================================================
+        //  ★ 静态便捷入口（2026-10-16 用户提出 ✓）
+        //
+        //  【为什么要有这一层】用户原话：
+        //    "我外部如果没职业我只能通过 GameManager 来访问我的玩家实例吗？
+        //      Nebula 有 Player.LocalPlayer …… 而不是用原版的 PlayerControl.LocalPlayer，
+        //      那样我们封装的意义就没了" ✓
+        //    → 完全同意 ✓：包装类如果每次都要外面自己 `GameManager.Instance.GetPlayer(...)` ✓，
+        //      那外部代码就同时依赖"我们的包装"和"内部管理器"两套东西 ✗；
+        //      而且一旦有人图省事直接 `PlayerControl.LocalPlayer` ✓，
+        //      **职业/RoleData/事件订阅全都在我们这层** ✗ → 拿到的只是个壳 ✓（正是"封装白做"✓）
+        //    → 所以这里给出一套**只依赖 `Player` 这一类**的入口 ✓（对齐 Nebula 的 `GamePlayer.LocalPlayer` ✓）
+        //
+        //  ⚠️ 一律返回**我们自己这层的 `Player`** ✓（不是 `PlayerControl` ✓）；
+        //     真要底层对象时用 `player.Control` ✓
+        //  ⚠️ 拿不到返回 `null` ✓（外层一律 `!= null` 判 ✓ —— 我们的 Player 是托管对象，
+        //     不是 Unity 对象，所以这里 `!= null` 就是普通判空 ✓，不涉及 AGENTS §4.6.1 的假 null ✓）
+        // =====================================================================
+
+        /// <summary>本局**本地玩家**（拿不到返回 null ✓）。等价 Nebula 的 `GamePlayer.LocalPlayer` ✓</summary>
+        public static Player? LocalPlayer
+        {
+            get
+            {
+                try { return GameManager.Instance.LocalPlayer; }
+                catch { return null; }
+            }
+        }
+
+        /// <summary>**房主玩家**（大厅/局内都可用 ✓；拿不到返回 null ✓）</summary>
+        public static Player? HostPlayer
+        {
+            get
+            {
+                try
+                {
+                    var client = AmongUsClient.Instance;
+                    if (client == null) return null;
+
+                    // ⚠️ 用 `GetClient(HostId)` 取角色（工程里 `CustomRPC.ResolveSenderId` 就是同一套用法 ✓）
+                    var hostChar = client.GetClient(client.HostId)?.Character;
+                    if (hostChar == null) return null;
+
+                    return Get(hostChar);
+                }
+                catch (Exception ex)
+                {
+                    LightLogger.LogWarning($"[Player.HostPlayer] {ex.Message}");
+                    return null;
+                }
+            }
+        }
+
+        /// <summary>本局**全部玩家**（我们这层的包装 ✓；没就绪时是空序列 ✓）</summary>
+        public static System.Collections.Generic.IEnumerable<Player> AllPlayers
+        {
+            get
+            {
+                try { return GameManager.Instance.AllPlayers; }
+                catch { return System.Array.Empty<Player>(); }
+            }
+        }
+
+        /// <summary>按 PlayerId 取（找不到返回 null ✓）</summary>
+        public static Player? Get(byte playerId)
+        {
+            try { return GameManager.Instance.GetPlayer(playerId); }
+            catch { return null; }
+        }
+
+        /// <summary>
+        /// 由**原版对象**反查我们的包装 ✓（外部拿到 `PlayerControl` 时用这个转回来 ✓）
+        /// —— 这是"别直接用 `PlayerControl`"那条规矩的配套入口 ✓
+        /// </summary>
+        public static Player? Get(PlayerControl? control)
+        {
+            try
+            {
+                if (control == null) return null;         // == 走 Unity 的判空重载（§4.6.1）✓
+                return GameManager.Instance.GetPlayer(control.PlayerId);
+            }
+            catch { return null; }
+        }
+
+        /// <summary>按条件找**第一个**满足的玩家（找不到返回 null ✓）</summary>
+        public static Player? Find(Func<Player, bool> predicate)
+            => TryGetPlayer(predicate, out var p) ? p : null;
+
+        /// <summary>按条件找**全部**满足的玩家 ✓</summary>
+        public static System.Collections.Generic.List<Player> FindAll(Func<Player, bool> predicate)
+        {
+            var list = new System.Collections.Generic.List<Player>();
+            try
+            {
+                if (predicate == null) return list;
+                foreach (var p in AllPlayers)
+                {
+                    if (p == null) continue;
+                    bool ok;
+                    try { ok = predicate(p); } catch { continue; }   // 单个谓词抛异常 → 跳过它，不影响其它 ✓
+                    if (ok) list.Add(p);
+                }
+            }
+            catch (Exception ex)
+            {
+                LightLogger.LogWarning($"[Player.FindAll] {ex.Message}");
+            }
+            return list;
+        }
+
+        /// <summary>
+        /// 按条件尝试取一个玩家 ✓（用户点名的那个用法 ✓）：
+        /// <code>
+        ///   if (Player.TryGetPlayer(p => !p.IsDead && p.Is&lt;Jackal&gt;(), out var jackal)) { … }
+        /// </code>
+        /// </summary>
+        public static bool TryGetPlayer(Func<Player, bool> predicate, out Player player)
+        {
+            player = null!;
+            try
+            {
+                if (predicate == null) return false;
+                foreach (var p in AllPlayers)
+                {
+                    if (p == null) continue;
+                    bool ok;
+                    try { ok = predicate(p); } catch { continue; }
+                    if (!ok) continue;
+                    player = p;
+                    return true;
+                }
+            }
+            catch (Exception ex)
+            {
+                LightLogger.LogWarning($"[Player.TryGetPlayer] {ex.Message}");
+            }
+            return false;
+        }
+
+        /// <summary>当前玩家是不是**房主** ✓</summary>
+        public bool IsHost
+        {
+            get
+            {
+                try
+                {
+                    var client = AmongUsClient.Instance;
+                    if (client == null || Control == null) return false;
+                    return client.GetClient(client.HostId)?.Character == Control;
+                }
+                catch { return false; }
+            }
+        }
+
         public bool IsDeadObject => Control == null || Control.Data == null
             || Control.Data.Disconnected || Control.Data.IsDead;
 

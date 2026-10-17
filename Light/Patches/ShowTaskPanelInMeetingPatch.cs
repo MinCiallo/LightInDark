@@ -1,4 +1,5 @@
-﻿using System;
+﻿using LightInDark;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -21,5 +22,19 @@ public static class HudManager_SetHudActive
         __instance.TaskPanel.openPosition = openPosition;
 
         __instance.TaskPanel.gameObject.SetActive(true);
+    }
+}
+[HarmonyPatch(typeof(TaskPanelBehaviour), nameof(TaskPanelBehaviour.SetTaskText))]
+public static class MyTaskPanelPatch
+{
+    public static void Postfix(TaskPanelBehaviour __instance)
+    {
+        var original = __instance.taskText.text;
+        var local = LightPlayer.LocalPlayer;
+        if (local != null) 
+        {
+            __instance.taskText.text = $"<color=#{ColorUtility.ToHtmlStringRGB(local.Role.Color.ToUnityColor())}>{local.Role.Name}:\n{local.Role.IntroText}</color>\n<size=90%>{original}</size>";
+        }
+        
     }
 }

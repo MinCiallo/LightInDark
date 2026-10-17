@@ -23,6 +23,8 @@ public class Crewmate : RoleTemplate
     /// </summary>
     public override bool CanBeAssigned => false;
 
+    public override LightInDark.Color Color => LightInDark.Color.CrewmateColor;
+
     public override RuntimeRoleTemplate CreateRuntime(PlayerControl owner)
         => new RuntimeInstance(owner, this);
 

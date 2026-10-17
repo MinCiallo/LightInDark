@@ -2,6 +2,7 @@ global using HarmonyLib;
 global using Light.Utilities;
 global using System.Collections;
 global using UnityEngine;
+global using LightPlayer = LightInDark.Game.Player;
 using BepInEx;
 using BepInEx.Logging;
 using BepInEx.Unity.IL2CPP;
@@ -19,6 +20,7 @@ using LightInDark.RPCs;
 using System;
 using System.Text.Json;
 using UnityEngine.SceneManagement;
+
 
 namespace Light;
 
