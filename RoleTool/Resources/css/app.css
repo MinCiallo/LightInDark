@@ -180,6 +180,10 @@ body {
   outline: none;
 }
 .meta-input:focus { border-color: #4a90d9; }
+/* 当前设置下无效的字段：置灰禁用 */
+.meta-row-disabled { opacity: .42; }
+.meta-row-disabled .meta-label { color: #6b7386; }
+.meta-input:disabled { cursor: not-allowed; }
 .meta-textarea { min-height: 60px; resize: vertical; }
 .meta-check { flex: 0 0 auto; width: 16px; height: 16px; }
 .config-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 6px 0; }

@@ -121,7 +121,6 @@ function _vCollect() {
         errors.push('分配数量不合法：必出 ' + guar + ' / 最大 ' + max + '（需满足 0 ≤ 必出 ≤ 最大 ≤ 15）');
     }
     if (!(chance >= 0 && chance <= 100)) errors.push('出现概率超出范围（0-100）：' + chance);
-    if (max > 0 && meta.category === 'Ghost') warnings.push('幽灵阵营设置了大于 0 的最大数量：' + max);
 
     // 4. 颜色分量与默认色
     ['colorR', 'colorG', 'colorB', 'colorA'].forEach(function (k) {

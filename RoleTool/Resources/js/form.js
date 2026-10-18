@@ -67,10 +67,35 @@ function initForm() {
     host.innerHTML = '';
     _buildMetaForm(host);
     renderConfigEntries();
+    syncFieldAvailability();
 
-    // 任意输入变化 → 触发重新生成
-    host.addEventListener('input', function () { scheduleRegen(); });
-    host.addEventListener('change', function () { scheduleRegen(); });
+    // 任意输入变化 → 同步字段可用性 + 触发重新生成
+    host.addEventListener('input', function () { syncFieldAvailability(); scheduleRegen(); });
+    host.addEventListener('change', function () { syncFieldAvailability(); scheduleRegen(); });
+}
+
+// 当前设置下无效的字段置灰禁用（避免"阵营是船员却能设中立细分"这种矛盾项）
+function _setEnabled(id, enabled, hint) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.disabled = !enabled;
+    var row = (el.closest ? el.closest('.meta-row') : null);
+    if (row) row.classList.toggle('meta-row-disabled', !enabled);
+    if (enabled) el.removeAttribute('title');
+    else el.title = hint || '当前设置下无效';
+}
+
+function syncFieldAvailability() {
+    var cat = _v('category') || 'Crewmate';
+    var canKill = _c('canKill');
+    var maxCount = _n('maxCount', 0);
+
+    _setEnabled('neutralType', cat === 'Neutral', '只有中立阵营需要选择中立细分');
+    _setEnabled('teamCode', cat === 'Neutral', '只有中立阵营会生成队伍标识');
+    _setEnabled('killCooldown', canKill, '未勾选「可击杀」时不生效');
+    _setEnabled('killDeathCauseId', canKill, '未勾选「可击杀」时不生效');
+    _setEnabled('guaranteedCount', maxCount > 0, '最大数量为 0 时不参与分配');
+    _setEnabled('chance', maxCount > 0, '最大数量为 0 时不参与分配');
 }
 
 function _buildMetaForm(host) {
@@ -125,6 +150,11 @@ function _n(id, def) { var v = parseFloat(_v(id)); return isFinite(v) ? v : def;
 function _c(id) { var e = document.getElementById(id); return e ? !!e.checked : false; }
 
 function readMetaForm() {
+    // 先算"当前设置下是否有效"，无效的字段统一回落默认值，避免把矛盾设置带进生成结果
+    var cat = _v('category') || 'Crewmate';
+    var canKill = _c('canKill');
+    var maxCount = _n('maxCount', 1);
+
     return {
         className: _v('className').trim() || 'Caller',
         codeName: _v('codeName').trim() || 'Caller',
@@ -136,23 +166,23 @@ function readMetaForm() {
         shortDesEn: _v('shortDesEn'),
         introEn: _v('introEn'),
         descEn: _v('descEn'),
-        category: _v('category') || 'Crewmate',
-        neutralType: _v('neutralType') || 'Benign',
+        category: cat,
+        neutralType: cat === 'Neutral' ? (_v('neutralType') || 'Benign') : 'Benign',
         colorR: _n('colorR', 255),
         colorG: _n('colorG', 255),
         colorB: _n('colorB', 255),
         colorA: _n('colorA', 255),
-        maxCount: _n('maxCount', 1),
-        guaranteedCount: _n('guaranteedCount', 0),
-        chance: _n('chance', 100),
-        canKill: _c('canKill'),
-        killCooldown: _n('killCooldown', 20),
+        maxCount: maxCount,
+        guaranteedCount: maxCount > 0 ? _n('guaranteedCount', 0) : 0,
+        chance: maxCount > 0 ? _n('chance', 100) : 0,
+        canKill: canKill,
+        killCooldown: canKill ? _n('killCooldown', 20) : 20,
         canUseVents: _c('canUseVents'),
         canReport: _c('canReport'),
         canCallMeeting: _c('canCallMeeting'),
         taskCount: _n('taskCount', 1),
-        teamCode: _v('teamCode'),
-        killDeathCauseId: _v('killDeathCauseId'),
+        teamCode: cat === 'Neutral' ? _v('teamCode') : '',
+        killDeathCauseId: canKill ? _v('killDeathCauseId') : '',
         roleImagePath: _v('roleImagePath'),
         introSFX: _v('introSFX'),
         documentType: _v('documentType') || 'Normal'
@@ -179,6 +209,7 @@ function applyMetaForm(data) {
         var el = document.getElementById(k);
         if (el && data[k] != null) el.checked = !!data[k];
     });
+    if (typeof syncFieldAvailability === 'function') syncFieldAvailability();
     if (typeof scheduleRegen === 'function') scheduleRegen();
 }
 

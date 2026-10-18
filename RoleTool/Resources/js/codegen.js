@@ -415,7 +415,7 @@ function buildMetaMembers(meta, imports) {
         lines.push(indentStr(1) + 'public override string Describe => ' + csString('./Resources/Documents/' + cls + '.' + ext) + ';');
     }
 
-    if (meta.killDeathCauseId) {
+    if (meta.canKill && meta.killDeathCauseId) {
         var id = meta.killDeathCauseId;
         lines.push(indentStr(1) + 'public const string KillCauseId = ' + csString(id) + ';');
         lines.push(indentStr(1) + 'static ' + cls + '() { LightInDark.Game.DeathCause.Register(KillCauseId, ' +
