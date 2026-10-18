@@ -44,6 +44,21 @@ namespace LightInDark.UI.Ability
             }
         }
 
+        public static AbilityButton CreateForPlayer(Player player, RoleButtonConfig config, Action onClick)
+        {
+            try
+            {
+                var button = new AbilityButton(null, player, config, onClick);
+                RoleButtonManager.Register(button);
+                return button;
+            }
+            catch (Exception ex)
+            {
+                LightLogger.LogError("[AbilityButton.CreateForPlayer]", ex);
+                return null;
+            }
+        }
+
         protected override void CreateUI()
         {
             ActionButton template = _config.IsKillButton

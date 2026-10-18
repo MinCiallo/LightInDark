@@ -27,11 +27,21 @@ REPO_LID_NAME    = "LightInDark"
 MIRROR_PREFIX = "https://ghproxy.com/"
 LOG_FILE = "update.log"
 
+<<<<<<< HEAD
+=======
+# 更新器自身版本号，遵守 SemVer：主.次.修[-预发布号]
+UPDATER_VERSION = "0.0.1-alpha.1"
+
+>>>>>>> f255053fa5edc18984c6026e3f95f7c31f00853c
 #写日志的。捕获范围没记错的话好像过大了，但我懒得改了。
 def log_message(msg):
     try:
         with open(LOG_FILE, "a", encoding="utf-8") as f:
+<<<<<<< HEAD
             f.write(f"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}\n")
+=======
+            f.write(f"[{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] [v{UPDATER_VERSION}] {msg}\n")
+>>>>>>> f255053fa5edc18984c6026e3f95f7c31f00853c
     except:
         pass
 
@@ -131,6 +141,7 @@ def get_remote_version(owner, repo):
         log_message(f"获取远程版本失败: {e}")
         return None
 
+<<<<<<< HEAD
 #比较版本号。但没有考虑到后续加上字母。
 def version_compare(v1, v2):
     parts1 = [int(x) for x in v1.split(".")]
@@ -139,6 +150,46 @@ def version_compare(v1, v2):
         if a != b:
             return 1 if a > b else -1
     return len(parts1) - len(parts2)
+=======
+#比较版本号（SemVer：主.次.修[-预发布号]）。
+#规则：预发布号 < 正式版；预发布标识符纯数字按数值比、含字母按 ASCII 比、数字 < 字母、前缀相同则标识符多者大。
+#例：0.0.1-alpha.1 < 0.0.1-alpha.2 < 0.0.1-beta < 0.0.1 < 0.0.2。
+def version_compare(v1, v2):
+    def parse(v):
+        core, _, pre = v.partition("-")
+        nums = [int(x) for x in core.split(".")]
+        return nums, (pre.split(".") if pre else None)   # None = 正式版，高于一切预发布
+
+    n1, p1 = parse(v1)
+    n2, p2 = parse(v2)
+
+    for a, b in zip(n1, n2):
+        if a != b:
+            return 1 if a > b else -1
+    if len(n1) != len(n2):
+        return 1 if len(n1) > len(n2) else -1
+
+    if p1 is None and p2 is None:
+        return 0
+    if p1 is None:
+        return 1
+    if p2 is None:
+        return -1
+
+    for a, b in zip(p1, p2):
+        an, bn = a.isdigit(), b.isdigit()
+        if an and bn:
+            ia, ib = int(a), int(b)
+            if ia != ib:
+                return 1 if ia > ib else -1
+        elif an != bn:
+            return 1 if bn else -1          # 数字标识符 < 字母标识符
+        elif a != b:
+            return 1 if a > b else -1
+    if len(p1) != len(p2):
+        return 1 if len(p1) > len(p2) else -1
+    return 0
+>>>>>>> f255053fa5edc18984c6026e3f95f7c31f00853c
 
 
 

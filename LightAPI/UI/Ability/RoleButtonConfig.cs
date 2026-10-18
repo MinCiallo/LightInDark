@@ -79,6 +79,9 @@ namespace LightInDark.UI.Ability
         public Action<RoleButtonBase> OnReleased;
         public Action<RoleButtonBase> OnBroken;
         public bool ShowKeyHint = true;
+        public bool PlainLabel = false;
+        public TMPro.TMP_FontAsset PlainFont;
+        public UnityEngine.Material PlainFontMaterial;
 
         /// <summary>解析后的显示文本。</summary>
         public string ResolvedLabel

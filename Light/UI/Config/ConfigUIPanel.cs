@@ -2447,47 +2447,11 @@ namespace Light.UI.Config
         {
             try
             {
-                // ★★ 2026-10-10 用户报「职业页签外泄游戏设置」「调数量外泄模组设置」——
-                //    真因：我们的 `ChangeTabPrefix` 吃掉了原版 `ChangeTab`（`return false` ✓），
-                //    虽然接管代码里做过一次互斥显隐 ✓，但**原版之后又会把某个页签点亮** ✗
-                //    （工程注释已记："原版 OpenMenu/OpenChancesTab 会把 RoleChancesSettings 重新 SetActive(true)" ✓）
-                //    → 每帧压一次（状态差量 ✓，没漏时一个字节都不写 ✓）
-                //  ⚠️⚠️ 2026-10-11 **已摘掉**：整个 `GameSettingMenuPatch` 被停用 ✓
-                //     （用户："把咱们现在的这份备份到 Patch/Unused 里面并且完全注释掉，
-                //       然后复制粘贴 NOS 的"）→ 那套"每帧压页签"的逻辑随之停用 ✓
-                //
-                //  ★★★ 2026-10-11 晚 **重新接回来** ✓✓：
-                //     NOS 那套已整套删除（`Light\UI\NovaFull\` + `Light.Nova\` ✗），
-                //     现在生效的是**从 Unused 恢复的旧 `GameSettingMenuPatch`** ✓
-                //     → 它当初就是靠这个"每帧压页签"来治用户这两条外泄的 ✓：
-                //         · 点阵营页签时，原版设置外泄 ✗
-                //         · 调职业最大数量时，游戏设置与模组设置一起错位外泄 ✗
-                //     不接回来 = 原版事后 `OpenMenu/OpenChancesTab/OnEnable→Initialize`
-                //     把原版页签重新 `SetActive(true)` 时**没有任何人压制** ✗✗
-                //     （状态差量：没漏时一个字节都不写 ✓）
-                //  ★★★ 2026-10-11 晚 **再次停用** ✓✓（用户实测：外泄已被正式机制修好 ✓）
-                //     我这轮曾把它重新接上（还额外加每帧驱动 `GameSettingMenuTickPatch` +
-                //     `OnEnable` 再断言 ✗），结果那套**广谱压制误伤了不属于页签的对象** ✗✗：
-                //       · 保存预设窗口的输入框消失 ✗
-                //       · 原版设置页的**地图预览**消失 ✗
-                //     → 全部停用 ✓，只保留正式机制（登记式时序 + `ShouldHandleCreateSettings` ✓）
-                //   Light.Patches.GameSettingMenuPatch.TickTabGuard();
+                Light.Patches.GameSettingMenuPatch.TickTabGuard();
 
-                // ★★ 2026-10-10：泄漏取证（一次性，最多 3 次 ✓）——
-                //    把"当前 MOD 页签上**还激活**的原版选项行"是谁打印出来 ✓
-                //    （连改三轮都靠猜 ✗ → 按工程规矩：先把事实打出来 ✓）
                 DumpLeakingOptionObjectsOnce();
-
-                // ★★ 2026-10-10 用户报「原版"游戏设置"的行**漏进我们的页**」——
-                //    方向我说反了 ✗：不是我们的浮窗跑到原版页，而是**原版的行回到了我们的页** ✓
-                //    根因工程注释里早就写着（见 `CleanMenu` 那段的 L1564-1567）：
-                //      "克隆菜单每次 `SetActive(true)` 都会走 `OnEnable→Initialize`，**原版内容可能回来**" ✗
-                //    → 只隐藏一次不够 ✓，在我们的**每帧刷新**里补一道"再隐藏" ✓
-                //      （状态差量：没漏出来时**一个字节都不写** ✓，开销可忽略）
                 RehideVanillaIfLeaked();
 
-                // 诊断：把 Refresh 的输入和判定结果打出来。
-                // 之前几轮都是"改了但不知道有没有跑到"，这次把每次 Refresh 都记下来。
                 if (_refreshLogs < 20)
                 {
                     _refreshLogs++;
@@ -2501,14 +2465,6 @@ namespace Light.UI.Config
 
                 if (NeedRebuild())
                 {
-                    // ★★ 2026-10-10 **防抖**（用户报「还是不能滚动 / 还是会外泄」的真因 ✓）：
-                    //    日志实证：`lid.debug.dummyCount` 的可见性**每帧抖一次** ✗ →
-                    //      `增量更新可见性：+1 行 / -0 行` ↔ `+0 行 / -1 行` 每帧交替 ✓
-                    //    后果有两个，而且是同一个原因：
-                    //      ① 内容高度每帧在 11.42 ↔ 10.97 之间跳 → 滚动位置被反复归零 → **滚不动** ✗
-                    //      ② 那一行被反复删了又建 → 位置错乱 → **看起来像"外泄"** ✗
-                    //    → 这里按"**可见行集合的签名**"防抖：签名没变就**不做任何结构改动** ✓
-                    //      （值的变化照旧走下面的 RefreshVisual ✓，不受影响）
                     string sig = VisibilitySignature();
                     if (sig == _lastVisibilitySig)
                     {
@@ -2517,14 +2473,6 @@ namespace Light.UI.Config
                     }
                     _lastVisibilitySig = sig;
 
-                    // ⚠️【增量优先】依赖项(如"启用调试模式")改变可见性时，
-                    //   **不要**整页销毁重建 —— 实测每次切换都会 Rebuild 一次，
-                    //   行实例计数 0→1→3→4→6→7… 无限增长。
-                    //   整页重建会重新走 ClearVanillaContent / UpdateScrollBounds /
-                    //   地图预览回收，正是"点一次配置项那块空缺又出现"和闪动的来源。
-                    //
-                    //   这里先尝试**只补/只删变化的那几行**；成功就返回，
-                    //   失败（结构对不上）才退回整页重建。
                     if (TryIncrementalVisibility())
                         return;
 
@@ -2535,8 +2483,6 @@ namespace Light.UI.Config
                         return;
                     }
 
-                    // ★ 兜底：`_container.parent` 取不到时**不能什么都不做** ✗（原来就是这样静默走空 ✓）
-                    //   用 `_page` 的父物体当退路 ✓
                     var alt = _page != null ? _page.transform.parent : null;
                     if (alt != null)
                     {

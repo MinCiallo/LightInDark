@@ -11,6 +11,9 @@ public sealed class MeetingTargetButtonConfig : RoleButtonConfig
     public Vector3 Position = new(-0.95f, 0.03f, -1.31f);
     public Vector3 Scale = Vector3.one;
     public Sprite HoverIcon;
+    public bool UseTemplateScale = true;
+    public Action OnHover;
+    public Action OnClickFeedback;
     public bool IncludeSelf;
     public bool AutoArrange = true;
     public Func<PlayerControl, bool> CanAddTarget = p => p != null && p.Data != null && !p.Data.IsDead && !p.Data.Disconnected;

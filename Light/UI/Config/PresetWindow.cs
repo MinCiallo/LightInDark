@@ -1072,18 +1072,10 @@ internal static class PresetSaveWindow
 
     private static HudUIWindow? _w;
 
-    /// <summary>预设名输入框（2026-10-16 恢复 ✓ —— Nova 已删，当初的停用理由不存在了 ✓）</summary>
-    private static Light.UI.Window.GUITextField? _nameField;
-    /// <summary>作者输入框（2026-10-16 恢复 ✓）</summary>
-    private static Light.UI.Window.GUITextField? _authorField;
+    private static Window.GUITextField? _nameField;
+    private static Window.GUITextField? _authorField;
 
-    // ⚠️ 2026-10-11：原来这里有两个**输入框**（`Light.UI.Window.GUITextField` ✓：预设名 / 作者 ✓）
-    //    现在它们**停用** ✗ —— 原因是那个 `GUITextField` 是我们早期的部分移植 ✗，
-    //    它继承了 Nova 的 `GUIWidget` ✓，而 Nova 的 `Instantiate` 签名在版本间变过 ✗
-    //    （`Size` 这个类型在 Nova 里有多个同名件 ✓ → 我们的重写匹配不上 ✗ → 编译不过 ✓）
-    //    → 本轮把它整段停用 ✓（预设名/作者改用默认值 ✓），
-    //      等接 Nova 完整 UI 时用 Nova 自己的输入框（`Modules\MetaWidget\GUITextField.cs` ✓）替回来 ✓
-    private static bool _nameFieldDisabled = false;   // 2026-10-16 恢复 ✓（Nova 已删，当初的停用理由不存在了 ✓）
+    private static bool _nameFieldDisabled = false;   // 2026-10-16 恢复（输入框类可用，停用理由不存在了）
 
     public static bool IsOpen => _w != null && _w.GameObject != null;
 
@@ -1107,10 +1099,6 @@ internal static class PresetSaveWindow
 
             // ---- 预设名 ----
             AddLabel(root, "预设名", LabelX, RowNameY);
-            // ★★ 2026-10-16 **恢复输入框** ✓✓（用户报「保存预设的输入框消失了，导致测不了」✗）
-            //    当初 2026-10-11 停用它是因为"要接 Nova 的 UI、而 `Light.UI.Window.GUITextField`
-            //    编译不过" ✗ —— **现在 Nova 已整套删除** ✓，那个理由不存在了 ✓
-            //    而这个类本身一直在用（H 帮助菜单 / HudUIWindow ✓），中文输入我这几轮也修过 ✓
             if (!_nameFieldDisabled)
             {
                 _nameField = Light.UI.Window.GUITextField.Create(root,
@@ -1193,8 +1181,8 @@ internal static class PresetSaveWindow
     {
         try
         {
-            var name = _nameField != null ? _nameField.Text : "";      // 2026-10-16 恢复：读输入框 ✓
-            var author = _authorField != null ? _authorField.Text : PresetLibrary.LocalPlayerName();   // 恢复 ✓
+            var name = _nameField != null ? _nameField.Text : "";
+            var author = _authorField != null ? _authorField.Text : PresetLibrary.LocalPlayerName();
 
             if (string.IsNullOrWhiteSpace(name))
             {

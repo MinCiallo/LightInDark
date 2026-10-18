@@ -22,7 +22,9 @@ public class Crewmate : RoleTemplate
     ///   与 <c>RoleConfigRegistrar</c> 注释里"兜底职业不出配置"的意图正好相反。
     /// </summary>
     public override bool CanBeAssigned => false;
+
     public override LightInDark.Color Color => LightInDark.Color.CrewmateColor;
+
     public override RuntimeRoleTemplate CreateRuntime(PlayerControl owner)
         => new RuntimeInstance(owner, this);
 
@@ -34,6 +36,9 @@ public class Crewmate : RoleTemplate
 
         protected override void OnActivated()
         {
+            var control = MyPlayer?.Control;
+            if (control == null) return;
+            RoleManager.Instance.SetRole(control, RoleTypes.Crewmate);
         }
     }
 }

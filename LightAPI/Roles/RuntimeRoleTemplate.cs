@@ -53,7 +53,7 @@ namespace LightInDark.Roles
                 try
                 {
                     byte id = byte.MaxValue;
-                    if (Owner != null) id = Owner.PlayerId;      // Owner 是 Unity 对象，别用 ?.（§4.6.1）
+                    if (Owner != null) id = Owner.PlayerId;
                     _myPlayer = Game.GameManager.Instance.GetPlayer(id);
                 }
                 catch { _myPlayer = null; }

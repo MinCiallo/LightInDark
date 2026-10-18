@@ -57,7 +57,7 @@ public class MeetingTargetButton : RoleButtonBase
             var go = Object.Instantiate(root.gameObject, area.transform);
             go.name = $"MeetingTarget_{Role.CodeName}_{player.PlayerId}";
             go.transform.localPosition = _targetConfig.Position + new Vector3(slot * 0.42f, 0f, 0f);
-            go.transform.localScale = _targetConfig.Scale;
+            if (!_targetConfig.UseTemplateScale) go.transform.localScale = _targetConfig.Scale;
             foreach (var aspect in go.GetComponentsInChildren<AspectPosition>(true)) aspect.enabled = false;
             var passive = go.GetComponent<PassiveButton>();
             if (passive == null) { Object.Destroy(go); continue; }
@@ -66,6 +66,7 @@ public class MeetingTargetButton : RoleButtonBase
             if (sr != null && _targetConfig.Icon != null) sr.sprite = _targetConfig.Icon;
             var target = new Target(go, player, area, sr);
             var normalIcon = sr != null ? sr.sprite : null;
+            var baseScale = go.transform.localScale;
             passive.OnClick = new Button.ButtonClickedEvent();
             passive.OnMouseOver = new UnityEvent();
             passive.OnMouseOut = new UnityEvent();
@@ -73,10 +74,13 @@ public class MeetingTargetButton : RoleButtonBase
             passive.OnMouseOver.AddListener((UnityAction)(() =>
             {
                 if (sr != null && _targetConfig.HoverIcon != null) sr.sprite = _targetConfig.HoverIcon;
+                go.transform.localScale = baseScale * 1.15f;
+                _targetConfig.OnHover?.Invoke();
             }));
             passive.OnMouseOut.AddListener((UnityAction)(() =>
             {
                 if (sr != null) sr.sprite = normalIcon;
+                go.transform.localScale = baseScale;
             }));
             _targets.Add(target);
             if (_gameObject == null) _gameObject = go;
@@ -105,7 +109,11 @@ public class MeetingTargetButton : RoleButtonBase
     }
     protected override void HandleClick()
     {
-        if (_selectedTarget != null && CanTarget(_selectedTarget)) base.HandleClick();
+        if (_selectedTarget != null && CanTarget(_selectedTarget))
+        {
+            base.HandleClick();
+            _targetConfig.OnClickFeedback?.Invoke();
+        }
     }
     private bool CanTarget(Target target) => target.Player != null && target.Area != null
         && !target.Area.AmDead && (target.Player.Data != null && !target.Player.Data.Disconnected)

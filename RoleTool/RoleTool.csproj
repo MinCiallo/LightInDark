@@ -1,0 +1,34 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>RoleTool</RootNamespace>
+    <AssemblyName>RoleTool</AssemblyName>
+    <LangVersion>latest</LangVersion>
+    <BaseOutputPath>..\Output\RoleTool\</BaseOutputPath>
+  </PropertyGroup>
+
+  <!-- 前端资源随程序一起输出 -->
+  <ItemGroup>
+    <None Update="Resources\**\*.*">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+  <!-- 排除无关的参考项目（Go），不参与编译与打包 -->
+  <ItemGroup>
+    <Compile Remove="RedstoneCodeStudio-main\**\*.cs" />
+    <None Remove="RedstoneCodeStudio-main\**" />
+    <Content Remove="RedstoneCodeStudio-main\**" />
+    <EmbeddedResource Remove="RedstoneCodeStudio-main\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4258.31" />
+  </ItemGroup>
+
+</Project>

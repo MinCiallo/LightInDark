@@ -107,5 +107,33 @@
   "role.Sidekick.shortdes": "The Jackal's ally, padding his numbers",
   "role.Sidekick.des": "You are the Jackal's Sidekick. You cannot kill, but the Jackal's blade will never find you. If the Jackal dies you take his place, and from then on you can kill and recruit in turn.",
   "role.Sidekick.intro": "You follow him, until the day you become him.",
+<<<<<<< HEAD
+=======
+  "role.NiceGuesser.name": "Nice Guesser",
+  "role.NiceGuesser.shortdes": "Guess roles in meetings",
+  "role.NiceGuesser.des": "During a meeting you may guess another player's role. Guess right and they die; guess wrong and you die.",
+  "role.NiceGuesser.intro": "Take the bet. Guess who they really are.",
+  "role.NiceGuesser.shots": "Guesses",
+  "role.NiceGuesser.safeGuesses": "Safe guesses",
+  "role.NiceGuesser.multipleShotsPerMeeting": "Multiple guesses per meeting",
+  "role.EvilGuesser.name": "Evil Guesser",
+  "role.EvilGuesser.shortdes": "Guess roles in meetings",
+  "role.EvilGuesser.des": "During a meeting you may guess another player's role. Guess right and they die; guess wrong and you die.",
+  "role.EvilGuesser.intro": "Bet their life on your read.",
+  "role.EvilGuesser.shots": "Guesses",
+  "role.EvilGuesser.safeGuesses": "Safe guesses",
+  "role.EvilGuesser.multipleShotsPerMeeting": "Multiple guesses per meeting",
+  "role.Sheriff.name": "Sheriff",
+  "role.Sheriff.shortdes": "Shoot impostors; misfire kills you",
+  "role.Sheriff.des": "You are the Sheriff. Shooting an impostor or neutral is safe; shooting an innocent crewmate kills you instead. Your shots are limited.",
+  "role.Sheriff.intro": "Aim at the guilty, never at your own.",
+  "role.Sheriff.killCooldown": "Kill cooldown",
+  "role.Sheriff.kills": "Shots",
+  "Guesser.prev": "Previous",
+  "Guesser.next": "Next",
+  "Guesser.hit": "Correct guess.",
+  "Guesser.miss": "Wrong guess.",
+  "Guesser.safe": "Safe guess saved you.",
+>>>>>>> f255053fa5edc18984c6026e3f95f7c31f00853c
   "gameEnd.JackalWin": "Jackal Team Wins"
 }

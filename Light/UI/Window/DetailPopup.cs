@@ -234,12 +234,12 @@ public static class DetailPopup
 
     /// <summary>
     /// **默认安全宽度**（菜单坐标系 ≈ 屏幕宽度的 80%）—— 文字超过它就**自动换行** ✓。
-    /// 为什么是这个数：菜单可用横向范围大约 ±2.2（见 `Show` 里的 `pos.x` 夹紧 ✓），
-    /// 所以 4.4 是"不会跑出屏幕"的上限 ✓；想更宽/更窄就用 `DetailPopup.SetStyle` 改 `MaxWidth`（&gt;0 优先于本值 ✓）。
+    /// 为什么是这个数：菜单可用横向范围大约 ±2.2（见 `Show` 里 `pos.x` 的夹紧 ✓），
+    /// 所以 4.4 是"不会跑出屏幕"的上限 ✓；想更宽/更窄就用 `DetailPopup.SetStyle` 改 `MaxWidth`（&gt;0 优先 ✓）。
     /// </summary>
     private const float DefaultWrapWidth = 4.4f;
 
-    /// <summary>本帧实际使用的换行宽度：配置里填了就用配置（&gt;0），否则用安全宽度 ✓</summary>
+    /// <summary>本帧实际使用的换行宽度：配置/样式里填了就用它（&gt;0），否则用安全宽度 ✓</summary>
     private static float ResolveWrapWidth()
         => Style.MaxWidth > 0f ? Style.MaxWidth : DefaultWrapWidth;
 
@@ -383,14 +383,6 @@ public static class DetailPopup
     /// <summary>代码画出来的圆角面板九宫格图（见 <see cref="RoundedPanelSprite"/> ✓）</summary>
     private static Sprite? _panelSprite;
 
-    /// <summary>
-    /// 按**当前样式**生成圆角面板图（配色变了会自动重画 —— 缓存键含颜色 ✓）。
-    ///
-    /// 设计（用户让我自己拿主意 ✓）：
-    ///   · 底：近黑偏蓝 `#121319`、alpha 0.96 —— 半透明能透出一点背景、又不影响读字 ✓
-    ///   · 边：**1px 淡金发丝**（模组强调色，透明度 0.55 —— 克制，不抢眼 ✓）
-    ///   · 角：**直角**（用户 2026-10-10 要求去掉圆角 ✓ → `radius: 0` 走硬边分支 ✓）
-    /// </summary>
     private static Sprite? EnsurePanelSprite()
     {
         try

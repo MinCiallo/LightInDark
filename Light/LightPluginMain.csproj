@@ -19,27 +19,7 @@
     <ItemGroup>
         <EmbeddedResource Include="Resources\**\*.*" />
 
-        <!-- ⚠️⚠️ 2026-10-11 **NOS 新版(Nova)全量源码已拷入,但暂不参与编译** ✓
-             （用户："全复制来，一会慢慢改，接到我们的职业系统里面" ✓）
-
-             拷进来的东西：
-               `Light\UI\NovaFull\NebulaAPI\`         234 个 .cs /  16,743 行  ← 命名空间 `Virial`（NOS 新框架 ✓）
-               `Light\UI\NovaFull\NebulaPluginNova\`  519 个 .cs / 116,533 行  ← 新版插件本体（标 2023.7.12 = 我们这版 ✓）
-               `Light\Resources\NovaFull\`            481 张 png / 9.4 MB      ← 美术资源
-
-             ⚠️ 为什么先排除：
-               · 这是**两个完整项目**（共 13.3 万行 ✗），直接编译会炸掉构建 ✗
-               · 命名空间**原样保留**（`Virial` / `Nebula.*` ✓）—— 不再批量改名 ✗
-                 （改命名空间正是我前面反复翻车的地方 ✓：块状/文件级 namespace 互换会吃掉花括号 ✗）
-               · 那 9.4 MB 资源**不嵌入** ✗（否则 DLL 白胖 ✓）—— 要用哪张就单独拷到 `Resources\GUI\` ✓
-                 （页签那 8 张已经这么办了 ✓）
-
-             ★ 落地顺序（下轮开始 ✓）：
-               ① 先放行 `NebulaAPI`（16,743 行 ✓ 相对小 ✓）
-               ② 再放行 Nova 的 UI 子集（`Modules\MetaScreen.cs` + `Modules\MetaWidget\*` +
-                  `Configuration\NebulaSettingMenu.cs` / `PresetSettingMenu.cs` + `Patches\Old\GameOptionPatch.cs` ✓）
-               ③ 把数据源换成我们的 `RoleRegistry` / `ConfigRegistry` ✓（用户要的"接到职业系统" ✓）
-               ④ 放行一个文件就在下面删一条 ✓，**构建始终绿** ✓ --><Compile Remove="UI\Window\GUIWidgetHelpers.cs" />
+        <Compile Remove="UI\Window\GUIWidgetHelpers.cs" />
 
         <Compile Remove="UI\Window\MetaUI.cs" />
         <Compile Remove="UI\Window\MetaScreen.cs" /><Compile Remove="UI\Window\Widgets.cs" /><Compile Remove="UI\Window\LIDGUI.cs" /><Compile Remove="UI\Window\GUIScrollView.cs" />
@@ -47,42 +27,7 @@
         
     </ItemGroup>
 
-    <!--
-      ⚠️⚠️ 2026-10-11：**照搬进来的 Nebula UI 框架暂时不参与编译** ✓
-      （用户："你照搬NOS的，确保出来的样子和NOS一样（除了第三个预设页签）"）
-
-      搬进来的文件（`Light\UI\Meta\`，共 3636 行，**源码完整保留在仓库里** ✓）：
-        MetaScreen.cs          812 行  ← ★ 核心：MetaScreenContent / MSDesigner / 窗口与布局
-        MetaDialog.cs          549 行  ← 对话框
-        CustomOption.cs       1629 行  ← ★ FixTab + 选项渲染（真实现）
-        CustomOptionPreset.cs  334 行  ← 预设页
-        TextInputField.cs      298 行  ← 文本输入
-        GameObjectExpansion.cs  14 行  ← 扩展方法
-
-      ⚠️ 为什么先排除：它们的依赖**还没消干净** ✗，直接编译会**炸掉整个构建** ✗。
-         用编译器量出来的缺口（下一轮逐个消 ✓）：
-           · `CustomOptionHolder.*`      —— Nebula 整套配置树（最大的一块 ✗）
-           · `Language.Language.GetString` —— 换成我们的 `LightInDark.Language` ✓
-           · `Helpers.cs(color, text)`     —— 一个"上色文字"小助手 ✓（很小，好补 ✓）
-           · `Roles.Roles.AllRoles/AllGhostRoles/AllExtraRoles` —— 只在 3 个"角色主题"方法里 ✓（**整段删掉即可** ✓）
-           · `LayerExpansion.GetUILayer()` —— 本工程已有同名件 ✓（确认一下即可 ✓）
-         消完一个就在这里少排除一个 ✓（`<Compile Remove>` 逐条删 ✓），**构建始终是绿的** ✓
-    -->
-    <ItemGroup>
-        <!-- ⚠️ 2026-10-11 照搬 Nebula UI：**框架已全部放行并编译通过** ✓
-             （MetaScreen / MSDesigner / MSString / MSButton / MSSprite / TextInputField /
-               TextCandidates / SpriteLoader / Il2CppHelpers / GameObjectExpansion / DataSaver /
-               NosStubs ✓ —— 见 `Light\UI\Meta\` ✓）
-
-             下面这几个是**和 Nebula 业务耦合最深**的 ✗，逐个放行中
-             （用户："直接 Copy-Item 然后改编译报错" ✓）：
-               · CustomOption.cs        实测 208 个错 ✗
-                 （`Language` / `CustomOptionHolder` / `Game` / `Color.Blend` / 21 处 `UnityAction` … 全在里面 ✓）
-               · CustomOptionHolder.cs  依赖同上 ✓
-               · CustomOptionPreset.cs  依赖同上 ✓
-               · DynamicColors.cs       依赖 Nebula 的配色系统 ✓
-               · MetaDialog.cs          绑死 Nebula 角色系统 ✓（只是对话框 ✓，页签外观不需要 ✓）
-             → 放行一个就删一条 ✓，**构建始终绿** ✓ --><Compile Remove="UI\Window\GUIWidgetHelpers.cs" />
+    <ItemGroup><Compile Remove="UI\Window\GUIWidgetHelpers.cs" />
 
         <Compile Remove="UI\Window\MetaUI.cs" />
         <Compile Remove="UI\Window\MetaScreen.cs" /><Compile Remove="UI\Window\Widgets.cs" /><Compile Remove="UI\Window\LIDGUI.cs" /><Compile Remove="UI\Window\GUIScrollView.cs" />
@@ -90,16 +35,6 @@
 
 
 <Compile Remove="UI\Nova\**\*.cs" />
-        <!-- 2026-10-11 全删 Nova：只保留页签（NovaTabBarPatch ✓） -->        <!-- ★ 语音聊天**不参与编译** ✗（照抄沙箱 `Light.Nova.csproj` 的验证结果 ✓）：
-             它依赖另一个模组 `Interstellar.dll` ✓，我们只提供垫片 ✓（`UI\NovaFull\InterstellarStub.cs` ✓）
-             → 两边同时在 = CS0101 重复定义 ✗（实测 62 个错 ✓）
-             `Ubiquitous.cs` 同理 ✓（它显式实现真实 Interstellar 接口，形状无法复刻 ✓） -->
-        <!-- MERGE-REVERT 2026-10-11: nova merge caused 1536 duplicate-type errors (UnityHelper etc) -> keep 2 assemblies for now -->        <!-- ★ Nova 的编译符号（74 个 #if PC ✗ 不定义就少成员 ✓） -->
-        <!-- ★ 注意：**不要**写 ✗ -->
-        <!--   .NET SDK **默认就包含项目目录下的所有 .cs** ✓，再 Include 一次会报 NETSDK1022 重复 ✗
-                 （这个错**不是** error CS / MSB / 而 是 error NETSDK ✓ —— 统计构建结果时必须连它一起数 ✗） -->
-        <!-- Nova 源码自带 AssemblyInfo ✗ → 别让 SDK 再生成（否则 CS0579 重复 ✓） -->
-    
     </ItemGroup>
 
 	<PropertyGroup Condition="$(TargetFramework.Contains('android'))">
@@ -133,25 +68,6 @@
 			<CustomOutDir>$(ProjectDir)..\Output\</CustomOutDir>
 		</PropertyGroup>
 		<MakeDir Directories="$(CustomOutDir)" Condition="!Exists('$(CustomOutDir)')" />
-
-		<!-- ==================================================================
-		     生成主插件时，往 Output\ 放**两个要部署的文件**：
-
-		       Light.dll         主插件（本项目产物）
-		       LightInDark.dll   API  —— ⚠️ 程序集名是 **LightInDark**，
-		                               "LightAPI" 只是它的项目/文件夹名
-		                               （..\LightAPI\LightInDark.csproj）
-
-		     LightInDark.dll 取两条路，先真产物再兜底：
-		       ① @(ReferencePath) 里程序集名为 LightInDark 的那条 —— ProjectReference
-		          解析出来的真实产物路径（通常是 LightAPI\bin\...\LightInDark.dll）
-		       ② ..\Libs\LightInDark.dll —— LightInDark.csproj 的 CopyToLibs 目标
-		          每次构建都会把产物同步到那儿，所以那份总是最新的
-
-		     不用 @(ReferenceCopyLocalPaths) 过滤：..\Libs\*.dll 那个通配会把
-		     Libs\LightInDark.dll 以 <Private>false</Private> 引进来，
-		     和 ProjectReference 打架，导致它不一定出现在那个集合里。
-		     ================================================================== -->
 		<Copy SourceFiles="$(TargetPath)" DestinationFolder="$(CustomOutDir)" />
 
 		<ItemGroup>

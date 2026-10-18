@@ -38,11 +38,11 @@ public partial class LightPlugin : BasePlugin
 {
     public const string Id = "cn.moonscar.lid";
     public const string Name = "LightInTheDark";
-    public const string Version = "0.0.1";
+    public const string Version = "0.0.1-alpha.1";
 
-    public const string VisualVersion = "v0.0.1";
+    public const string VisualVersion = "v0.0.1-alpha.1";
 
-    public const string RichVersion = "<color=#4FD1C5>ver</color> <color=#38B2AC>0.0.1</color>";
+    public const string RichVersion = "<color=#4FD1C5>ver</color> <color=#38B2AC>0.0.1-alpha.1</color>";
     public static string AUVersion;
     public static string CursurDataPath = Application.persistentDataPath;
     public static MainColor.ModColorData ColorData;
