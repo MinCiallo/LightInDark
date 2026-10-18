@@ -302,6 +302,15 @@ const EMIT = {
             return ['(' + ctx.resolveEvent(node, '事件', 'e') + ').IsCanceled = true;'];
         }
     },
+    'logic/onlyOwner': {
+        category: 'logic', kind: 'exec',
+        lines: function () { return ['if (!AmOwner) return;']; }
+    },
+    'logic/onlyHost': {
+        category: 'logic', kind: 'exec',
+        // 用 GameState.AmHost（实时读取 + 永不抛），避免依赖 InnerNet 命名空间
+        lines: function () { return ['if (!LightInDark.Game.GameState.AmHost) return;']; }
+    },
 
     // ---------- 颜色 ----------
     'val/color': {

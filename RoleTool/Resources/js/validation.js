@@ -93,6 +93,15 @@ function _vCollect() {
     if (!code) errors.push('内部名(CodeName)不能为空');
     else if (!_VALID_NAME_RE.test(code)) errors.push('内部名(CodeName)含非法字符：' + code);
     if (cls && !_VALID_NAME_RE.test(cls)) errors.push('类名含非法字符：' + cls);
+
+    // 与常用类型同名会和其他 using 的命名空间打架（例如 Debug / Color / Object）
+    var RESERVED_TYPE_NAMES = ['Debug', 'Color', 'Object', 'Random', 'Time', 'Math', 'Console',
+        'Player', 'Task', 'Path', 'File', 'Directory', 'Convert', 'Type', 'Environment',
+        'Application', 'GameObject', 'Transform', 'Vector2', 'Vector3', 'Component',
+        'Behaviour', 'Camera', 'Light', 'Scene'];
+    if (cls && RESERVED_TYPE_NAMES.indexOf(cls) !== -1) {
+        warnings.push('类名「' + cls + '」与常用类型同名，可能造成命名冲突（建议改为 ' + cls + 'Role）');
+    }
     if (code && cls && cls !== code) {
         var pascal = code.charAt(0).toUpperCase() + code.slice(1);
         if (cls !== pascal) warnings.push('类名与内部名不一致：' + cls + ' / ' + code);
@@ -343,6 +352,35 @@ function _vCollect() {
             errors.push('「玩家」的「' + opt + '」在 ' + evType + ' 里不存在（可用：' +
                 (mem.length ? mem.join(' / ') : '无玩家成员') + '）');
         }
+    });
+
+    // 13. 事件处理里的广播动作：事件在每个客户端都会触发，RPC 会各发一次
+    var BROADCAST_ACTIONS = ['act/kill', 'act/suicide', 'act/revive', 'act/teleport',
+        'act/invisible', 'act/sendChat', 'act/kick', 'act/setRoleByCode', 'act/guesserShoot'];
+    var LIFE_EVENT_HOOKS = ['life/onDied', 'life/onRevived', 'life/onExiled',
+        'life/onMeetingStarted', 'life/onMeetingEnded', 'life/onRoleData', 'life/onInactivated'];
+    var BROADCAST_GUARDS = ['logic/onlyHost', 'logic/onlyOwner'];
+
+    function warnBroadcast(rootNode, label) {
+        var sub = _vReachable([rootNode.id], adj);
+        var types = {};
+        Object.keys(sub).forEach(function (id) { if (idMap[id]) types[_vType(idMap[id])] = true; });
+        if (BROADCAST_GUARDS.some(function (g) { return types[g]; })) return;
+        var hits = BROADCAST_ACTIONS.filter(function (a) { return types[a]; });
+        if (hits.length) {
+            warnings.push('「' + label + '」里的广播动作（' + hits.join(', ') +
+                '）会在每个客户端各执行一次，建议先接「仅房主执行」或「仅本人执行」');
+        }
+    }
+
+    nodes.forEach(function (n) {
+        var t = _vType(n);
+        if (LIFE_EVENT_HOOKS.indexOf(t) !== -1) { warnBroadcast(n, t); return; }
+        if (t.indexOf('ev/') !== 0) return;
+        // 已经用 OnlyHost / OnlyMyPlayer / Local 过滤过的监听不再提醒
+        if (nodeProp(n, 'OnlyHost', false) || nodeProp(n, 'OnlyMyPlayer', false) ||
+            nodeProp(n, 'Local', false)) return;
+        warnBroadcast(n, t);
     });
 
     // 10. 翻译完整性

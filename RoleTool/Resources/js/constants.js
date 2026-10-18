@@ -1,5 +1,5 @@
 // 应用版本号 (YYYYMMDD)
-const APP_VERSION = 20261017;
+const APP_VERSION = 20261018;
 
 // 节点配色：按分类分组，{ bg 背景, fg 边框/标题色 }
 const C = {

@@ -306,6 +306,18 @@ function registerAllNodes() {
         this.size = [190, 84];
     }, C.logic.fg, C.logic.bg);
 
+    defNode("logic/onlyOwner", "仅本人执行", function () {
+        this.addInput("执行", "exec");
+        this.addOutput("下一", "exec");
+        this.size = [180, 72];
+    }, C.logic.fg, C.logic.bg);
+
+    defNode("logic/onlyHost", "仅房主执行", function () {
+        this.addInput("执行", "exec");
+        this.addOutput("下一", "exec");
+        this.size = [180, 72];
+    }, C.logic.fg, C.logic.bg);
+
     // ---------- 颜色 ----------
     defNode("val/color", "颜色", function () {
         ["R", "G", "B", "A"].forEach((k) => {

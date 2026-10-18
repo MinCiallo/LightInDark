@@ -330,8 +330,12 @@ function collectDeclarations(graph, imports) {
         if (nodeProp(n, 'Local', false)) evMethods.push(indentStr(2) + '[LocalAttribute]');
         evMethods.push(indentStr(2) + 'private void On_' + def.name + '_' + evIndex +
             '(' + def.event + ' e)');
+        var evBody = traverseExec(findNextExec(n, 0), 3, imports);
         evMethods.push(indentStr(2) + '{');
-        evMethods = evMethods.concat(traverseExec(findNextExec(n, 0), 3, imports));
+        if (evBody.some(function (l) { return l && l.indexOf('MyPlayer') >= 0; })) {
+            evMethods.push(indentStr(3) + 'if (MyPlayer?.Control == null) return;');
+        }
+        evMethods = evMethods.concat(evBody);
         evMethods.push(indentStr(2) + '}');
     });
 
@@ -493,10 +497,18 @@ function buildRuntimeMembers(meta, lifeNodes, decls, imports) {
             m.push(indentStr(3) + '{');
             m.push(indentStr(4) + 'LightLogger.LogError(' + csString('[' + cls + '.OnActivated]') + ', ex);');
             m.push(indentStr(3) + '}');
-        } else if (typeof def.body === 'function') {
-            m = m.concat(indentLines(def.body(host, ctx), 3));
         } else {
-            m = m.concat(traverseExec(findNextExec(host, 0), 3, imports));
+            var body = (typeof def.body === 'function')
+                ? indentLines(def.body(host, ctx), 3)
+                : traverseExec(findNextExec(host, 0), 3, imports);
+
+            // 事件钩子在玩家表尚未建立 / 断线瞬间 MyPlayer 可能为空：用到就补判空
+            var usesMyPlayer = body.some(function (l) { return l && l.indexOf('MyPlayer') >= 0; });
+            if (usesMyPlayer) {
+                m.push(indentStr(3) + 'if (MyPlayer?.Control == null) return' +
+                    (t === 'life/checkWin' ? ' false' : '') + ';');
+            }
+            m = m.concat(body);
         }
 
         m.push(indentStr(2) + '}');
