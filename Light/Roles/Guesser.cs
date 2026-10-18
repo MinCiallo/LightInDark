@@ -50,7 +50,7 @@ internal sealed class GuesserRuntime : RuntimeRoleTemplate
     {
         if (!AmOwner) return;
 
-        NormalizeVanillaRole(RoleCategory == RoleCategory.Impostor);
+        // （不再需要 NormalizeVanillaRole ✓ —— 分配机已被完全接管，见 RuntimeRoleTemplate ✓）
 
         _shots = ConfigRegistry.GetInt($"role.{CodeName}.shots");
         _safe = ConfigRegistry.GetInt($"role.{CodeName}.safeGuesses");

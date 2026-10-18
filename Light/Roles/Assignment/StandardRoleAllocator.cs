@@ -24,13 +24,33 @@ public class StandardRoleAllocator : IRoleAllocator
     ///   Nebula 对应的是 `options.assignment.crewmate / impostor / neutral` ✓
     /// ✅ **默认值就是原来的 2 / 1 / 2** → 没人改配置时行为与改动前一致（纯增量）。
     /// </summary>
-    private static int MaxImpostorRoles => GetCap("lid.assignment.impostorMax", 2);
+    private static int MaxImpostorRoles => GetMaxRoles("lid.assignment.impostorMax");
 
     /// <inheritdoc cref="MaxImpostorRoles"/>
-    private static int MaxNeutralRoles => GetCap("lid.assignment.neutralMax", 1);
+    private static int MaxNeutralRoles => GetMaxRoles("lid.assignment.neutralMax");
 
     /// <inheritdoc cref="MaxImpostorRoles"/>
-    private static int MaxCrewmateRoles => GetCap("lid.assignment.crewmateMax", 2);
+    private static int MaxCrewmateRoles => GetMaxRoles("lid.assignment.crewmateMax");
+
+    /// <summary>“不限制”的哨兵（类别人数最多 15，用 99 足够）</summary>
+    private const int NoCap = 99;
+
+    /// <summary>
+    /// 读**类别上限**：**0 = 不限制** ✓（用户 2026-10-10："上限下限好像也不好使" ✓）
+    ///
+    /// ⚠️ 原来默认是 2/2/1，等于给三类各加了一道**我们自己发明的**天花板 ✗
+    ///    TORV / NOS(Nebula) / TONE 三家都只有"每职业数量"、没有类别上限 ✓
+    ///    → 某职业填 3 个却被 `crewmateMax=2` 卡住 = 看起来"不好使" ✓
+    ///    → 现在 0（默认）走"不限制"，实际数量由各职业自己的「数量」决定 ✓
+    /// </summary>
+    private static int GetMaxRoles(string key)
+    {
+        int v = GetCap(key, 0);
+        return v <= 0 ? NoCap : v;
+    }
+
+    /// <summary>把上限值变成日志里的可读文本（99 = 不限制 ✓）</summary>
+    private static string Describe(int cap) => cap >= NoCap ? "不限" : cap.ToString();
 
     /// <summary>读上限配置（缺失/异常回退默认；夹到 `[0,15]`，与职业数量项同一口径）。</summary>
     private static int GetCap(string key, int fallback)
@@ -52,6 +72,21 @@ public class StandardRoleAllocator : IRoleAllocator
         try
         {
             var table = new RoleTable();
+
+            // ★ 审查（用户 2026-10-10 报"上限下限不好使"）：先把**生效的上下限 + 池子大小**打出来 ✓
+            //   以后这类"我设了没用"的问题，一行日志就能判断是"配置没读到"还是"池子里根本没有"✓
+            try
+            {
+                LightLogger.Log($"[StandardRoleAllocator] 生效配置（上限 0=不限 / 下限 0=不限）：" +
+                                $"内鬼 上限={Describe(MaxImpostorRoles)} 下限={GetCap("lid.assignment.impostorMin", 0)} / " +
+                                $"中立 上限={Describe(MaxNeutralRoles)} 下限={GetCap("lid.assignment.neutralMin", 0)} / " +
+                                $"船员 上限={Describe(MaxCrewmateRoles)} 下限={GetCap("lid.assignment.crewmateMin", 0)}；" +
+                                $"池：内鬼={BuildPool(RoleCategory.Impostor).Count} " +
+                                $"中立={BuildPool(RoleCategory.Neutral).Count} " +
+                                $"船员={BuildPool(RoleCategory.Crewmate).Count}" +
+                                $"（内鬼 {impostors.Count} 人 / 其他 {others.Count} 人）");
+            }
+            catch { }
 
             // /up 预定优先：先消耗各类别名额（职业未开启→忽略；名额满→预定保留到下局）
             int usedImp = AssignPinned(table, impostors, RoleCategory.Impostor, MaxImpostorRoles);

@@ -145,8 +145,11 @@ namespace LightInDark.UI.Ability
         ///     **「平时不显示 → 最后 3 秒才出现 → 很快填满」**（`ActionButton.cs:82-97`）✓
         ///   → 只要它还在显示，玩家就会同时看到**两套计时**✗
         ///
-        /// ⚠️ 与 `RuntimeRoleTemplate.NormalizeVanillaRole()` 是**互补**的两道防线：
-        ///   那条从源头换掉底层职业（治本）；这条兜住"换之前 / 换失败 / 原版又把它显示出来"的情况 ✓
+        /// ⚠️ 现在**分配机已被完全接管** ✓（`Light\Patches\RoleInterceptPatch.cs` 的
+        ///    `VanillaSelectRolesBlockPatch` → `RoleManager.SelectRoles` 的 Prefix 直接 `return false`，
+        ///    我们自己只发 `Crewmate` / `Impostor` 两种底色职业 ✓）
+        ///    → 原版技能职业**从根源上不会出现** ✓，所以这里正常情况下**一个字节都不会写** ✓
+        ///    → 保留它只作为"最后一层兜底"（万一 Prefix 被回退 / 别的模组又发了技能职业 ✓）
         /// ⚠️ 只在**状态真的不对**时才写（`activeSelf` 判断）→ 不是每帧盲写，符合 §4.4 的规矩 ✓
         /// </summary>
         public static void SuppressVanillaAbilityButtons()

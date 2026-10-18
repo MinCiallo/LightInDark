@@ -35,11 +35,8 @@ public class Sidekick : RoleTemplate
             {
                 if (!AmOwner) return;
 
-                // ★ 规整底层原版职业（用户 2026-10-06 报的三个 Bug 的共同根因）：
-                //   没有这一步，底层的原版技能职业会继续每帧驱动 HudManager.AbilityButton
-                //   画它自己那套冷却（SetFillUp = 最后三秒才出现）✗
-                //   详见 RuntimeRoleTemplate.NormalizeVanillaRole
-                NormalizeVanillaRole();
+                // （不再需要 NormalizeVanillaRole ✓ —— 分配机已被完全接管，
+                //   原版技能职业从根源上不会出现，见 RuntimeRoleTemplate ✓）
             }
             catch (System.Exception ex)
             {

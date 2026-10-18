@@ -32,23 +32,30 @@ internal static class AssignmentConfigRegistrar
                 LightInDark.Language.Language.Translate("config.assignment.title", "职业分配"),
                 ConfigCategory.Mod);
 
+            // ⚠️⚠️ 2026-10-10 用户报「预设的那几个上限下限好像也不好使」——根因就是这里的默认值 ✗
+            //   原来默认是 2 / 2 / 1：**类别上限**这个层级是我们自己发明的 ✗
+            //   （TORV / NOS(Nebula) / TONE 三家都**没有**这一层 ✓ —— 它们只有"每职业数量" ✓）
+            //   于是：某职业自己填了 3 个 ✗ 却被 `crewmateMax=2` 卡住；中立职业填了 2 个 ✗ 被 `neutralMax=1` 卡住
+            //   → 看起来就是"上限/下限不好使" ✓
+            //   → 默认改成 **0 = 不限制**（实际数量由各职业自己的「数量」自然决定 ✓ = TORV/NOS 的语义 ✓）
+            //     想额外封顶的房主再手动填 1~15 即可 ✓
             block.AddConfiguration(
-                "lid.assignment.crewmateMax", 2, 0, 15, 1,
+                "lid.assignment.crewmateMax", 0, 0, 15, 1,
                 LightInDark.Language.Language.Translate("config.assignment.crewmateMax", "船员职业数上限"),
                 LightInDark.Language.Language.Translate("config.assignment.crewmateMax.detail",
-                    "一局里最多给几个船员分自定义职业（默认 2）"));
+                    "一局里最多给几个船员分自定义职业。**0 = 不限制**（按各职业自己填的数量之和，默认）"));
 
             block.AddConfiguration(
-                "lid.assignment.impostorMax", 2, 0, 15, 1,
+                "lid.assignment.impostorMax", 0, 0, 15, 1,
                 LightInDark.Language.Language.Translate("config.assignment.impostorMax", "内鬼职业数上限"),
                 LightInDark.Language.Language.Translate("config.assignment.impostorMax.detail",
-                    "一局里最多给几个内鬼分自定义职业（默认 2）"));
+                    "一局里最多给几个内鬼分自定义职业。**0 = 不限制**（按各职业自己填的数量之和，默认）"));
 
             block.AddConfiguration(
-                "lid.assignment.neutralMax", 1, 0, 15, 1,
+                "lid.assignment.neutralMax", 0, 0, 15, 1,
                 LightInDark.Language.Language.Translate("config.assignment.neutralMax", "中立职业数上限"),
                 LightInDark.Language.Language.Translate("config.assignment.neutralMax.detail",
-                    "一局里最多给几个中立分自定义职业（默认 1）"));
+                    "一局里最多给几个中立分自定义职业。**0 = 不限制**（按各职业自己填的数量之和，默认）"));
 
             // ★ 审查 B7 下半：**下限** —— "至少发这么多个"（默认 0 = 不改变现状 ✓）
             block.AddConfiguration(

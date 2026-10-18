@@ -40,7 +40,7 @@ public class Sheriff : RoleTemplate
         {
             if (!AmOwner) return;
 
-            NormalizeVanillaRole();
+            // （不再需要 NormalizeVanillaRole ✓ —— 分配机已被完全接管，见 RuntimeRoleTemplate ✓）
 
             _killsLeft = ConfigRegistry.GetInt($"role.{CodeName}.kills");
             _tracker = new PlayerTracker(MyPlayer, RoleUtils.KillDistance(), p => !p.IsDead);

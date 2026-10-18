@@ -71,10 +71,9 @@ public class Jackal : RoleTemplate
         {
             if (!AmOwner) return;
 
-            // ★ 规整底层原版职业（三个 Bug 的共同根因，详见 RuntimeRoleTemplate.NormalizeVanillaRole）：
-            //   中立传 false → 底层给 Crewmate，`IsImpostor` 保持 false ✓
-            //   （不会被算进 AliveImpostors 那类判定；击杀/钻管道由我们自己的按钮与 RoleVentPatch 提供 ✓）
-            NormalizeVanillaRole();
+            // （不再需要 NormalizeVanillaRole ✓ —— 分配机已被完全接管：
+            //   原版技能职业从根源上不会出现，底层必然是 Crewmate/Impostor ✓
+            //   中立必然是 Crewmate → `IsImpostor` 保持 false ✓ 见 RuntimeRoleTemplate ✓）
 
             AbilityButtonFactory.CreateKill(this, _ => { _killCount++; RefreshRecruitHint(); });
 
