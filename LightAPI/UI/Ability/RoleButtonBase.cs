@@ -884,7 +884,21 @@ namespace LightInDark.UI.Ability
             var button = Button;
             if (button == null) return;
             var label = button.buttonLabelText;
-            if (label != null) { label.enableAutoSizing = false; label.fontStyle |= FontStyles.Bold; }
+            if (label != null)
+            {
+                label.enableAutoSizing = false;
+                if (_config.PlainLabel)
+                {
+                    if (_config.PlainFont != null)
+                    {
+                        label.font = _config.PlainFont;
+                        if (_config.PlainFontMaterial != null) label.fontSharedMaterial = _config.PlainFontMaterial;
+                    }
+                    label.fontStyle = FontStyles.Normal;
+                    label.outlineWidth = 0f;
+                }
+                else label.fontStyle |= FontStyles.Bold;
+            }
             var cooldown = button.cooldownTimerText;
             if (cooldown != null) { cooldown.enableAutoSizing = false; cooldown.fontStyle |= FontStyles.Bold; }
         }

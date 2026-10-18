@@ -259,21 +259,40 @@ namespace LightInDark.RPCs
         {
             try
             {
-                foreach (var pc in PlayerControl.AllPlayerControls)
-                    if (pc.PlayerId == playerId && pc.Data.IsDead)
-                    {
-                        pc.Revive();
-                        // ⚠️ 这里**不再手动发** OnPlayerRevive（2026-10-06 审查 #9）：
-                        //    复活事件改由 `PlayerControl.Revive` 的补丁统一派发（见 RoleInterceptPatch.RevivePatch）→
-                        //    原版路径 / 其它模组的复活也能触发；这里再发一次就是同一次复活发两遍。
-                        LightLogger.Log($"[RPC] {pc.name} 已复活");
-                        break;
-                    }
+                ReviveLocal(playerId);
             }
             catch (Exception ex)
             {
                 LightLogger.LogError("RpcDefinitions.RevivePlayer", ex);
             }
+        }
+
+        [LidRPC]
+        public static void FreePlayRevive(byte playerId)
+        {
+            try
+            {
+                if (!GameModeManager.AllowRoleChanges) return;
+                ReviveLocal(playerId);
+            }
+            catch (Exception ex)
+            {
+                LightLogger.LogError("RpcDefinitions.FreePlayRevive", ex);
+            }
+        }
+
+        private static void ReviveLocal(byte playerId)
+        {
+            foreach (var pc in PlayerControl.AllPlayerControls)
+                if (pc != null && pc.PlayerId == playerId && pc.Data != null && pc.Data.IsDead)
+                {
+                    pc.Revive();
+                    // ⚠️ 这里**不再手动发** OnPlayerRevive（2026-10-06 审查 #9）：
+                    //    复活事件改由 `PlayerControl.Revive` 的补丁统一派发（见 RoleInterceptPatch.RevivePatch）→
+                    //    原版路径 / 其它模组的复活也能触发；这里再发一次就是同一次复活发两遍。
+                    LightLogger.Log($"[RPC] {pc.name} 已复活");
+                    break;
+                }
         }
 
         /// <summary>设置玩家可见性</summary>
@@ -358,6 +377,41 @@ namespace LightInDark.RPCs
             {
                 LightLogger.LogError("RpcDefinitions.RpcStartMeeting", ex);
             }
+        }
+
+        [LidRPC]
+        public static void GuesserShoot(byte killerId, byte dyingId, string guessedRole)
+        {
+            try
+            {
+                var killer = FindPlayer(killerId);
+                var dying = FindPlayer(dyingId);
+                if (killer == null || dying == null) return;
+                if (dying.Data != null && dying.Data.IsDead) return;
+
+                dying.Die(DeathReason.Exile, false);
+
+                var meeting = MeetingHud.Instance;
+                if (meeting != null && meeting.playerStates != null)
+                    foreach (var area in meeting.playerStates)
+                        if (area != null && (byte)area.PlayerId == dyingId)
+                        {
+                            area.SetDead(true);
+                            break;
+                        }
+
+                LightPlayerDataManager.SetDeath(dyingId, PlayerState.BeGuessed, killerId,
+                    LightPlayerDataManager.CurrentMeetingNumber);
+                EventTriggers.OnPlayerMurder(killer, dying, PlayerState.BeGuessed);
+            }
+            catch { }
+        }
+
+        private static PlayerControl FindPlayer(byte playerId)
+        {
+            foreach (var pc in PlayerControl.AllPlayerControls)
+                if (pc != null && pc.PlayerId == playerId) return pc;
+            return null;
         }
 
         [LidRPC(OnlyHost = true)]

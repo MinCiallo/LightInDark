@@ -16,7 +16,7 @@ public static class VictoryRuntime
         int tasks = 0, completed = 0;
         foreach (var pc in PlayerControl.AllPlayerControls)
         {
-            if (pc == null || pc.Data == null || pc.isDummy) continue;
+            if (pc == null || pc.Data == null) continue;
             var data = pc.Data;
             var player = GameManager.Instance.GetPlayer(pc.PlayerId);
             var template = player?.Role?.Role;

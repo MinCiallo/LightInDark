@@ -169,6 +169,31 @@ public static class MusicClipLoader
     /// 主线程建 AudioClip。**独立成一个方法是为了让协程里那段"不 yield 的区间"尽可能短**,
     /// 也顺便把"采样数不足一个采样帧"这种脏数据挡掉(不然 AudioClip.Create 会抛)。
     /// </summary>
+    public static AudioClip? CreateClipFromWavBytes(string name, byte[] bytes)
+    {
+        try
+        {
+            if (!LoadTask.TryParseWav(bytes, out var samples, out var channels, out var sampleRate, out var failReason)
+                || samples == null || samples.Length == 0)
+                return null;
+
+            channels = Mathf.Max(1, channels);
+            sampleRate = Mathf.Max(1, sampleRate);
+            int frames = samples.Length / channels;
+            if (frames <= 0) return null;
+
+            var clip = AudioClip.Create(name, frames, channels, sampleRate, false);
+            if (clip == null) return null;
+            clip.SetData(samples, 0);
+            clip.name = name;
+            return clip;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     private static AudioClip? CreateClipSafely(LoadTask task, string fileName, out string failReason)
     {
         failReason = string.Empty;
@@ -310,7 +335,7 @@ public static class MusicClipLoader
         /// 解析 RIFF/WAVE:找 <c>fmt </c> 读 format/channels/sampleRate/bitDepth,找 <c>data</c> 取 PCM。
         /// 返回 false 时 <paramref name="failReason"/> 写清是哪一步不行(日志/UI 直接用这句)。
         /// </summary>
-        private static bool TryParseWav(byte[] data, out float[]? samples, out int channels,
+        internal static bool TryParseWav(byte[] data, out float[]? samples, out int channels,
             out int sampleRate, out string failReason)
         {
             samples = null;

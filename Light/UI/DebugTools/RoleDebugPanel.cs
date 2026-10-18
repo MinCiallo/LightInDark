@@ -47,7 +47,7 @@ public static class RoleDebugPanel
     private const float BtnZ = -45f;
 
     /// <summary>每页几个职业（按 ~0.65 行高算，6 个刚好塞进 5.4 高的窗口）。</summary>
-    private const int PageSize = 6;
+    private const int PageSize = 4;
 
     private static readonly Vector2 WindowSize = new(6.0f, 5.4f);
 
@@ -192,7 +192,7 @@ public static class RoleDebugPanel
     //  职业选择窗口
     // =====================================================================
 
-    private static void OpenWindow()
+    public static void OpenWindow()
     {
         try
         {

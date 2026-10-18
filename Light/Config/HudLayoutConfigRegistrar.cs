@@ -37,9 +37,9 @@ internal static class HudLayoutConfigRegistrar
 
             block.AddConfiguration(
                 "lid.hud.smallGrid", false,
-                LightInDark.Language.Language.Translate("config.hud.smallGrid", "小 HUD 按钮阵"),
+                LightInDark.Language.Language.Translate("config.hud.smallGrid", "HUD 紧凑化"),
                 LightInDark.Language.Language.Translate("config.hud.smallGrid.detail",
-                    "把技能按钮阵缩到 0.72 倍并调整边距（小分辨率/小 HUD 时不重叠）。默认关"));
+                    "将屏幕中的按钮等界面元素以更小巧紧凑的方式显示（缩到 0.72 倍并调整边距）。默认关"));
 
             block.AddConfiguration(
                 "lid.hud.buttonArrangement", 0, 0, 2, 1,

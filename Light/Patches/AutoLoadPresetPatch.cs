@@ -53,7 +53,11 @@ internal static class AutoLoadPresetPatch
                 return;
             }
 
+            var modeItem = LightInDark.Configuration.ConfigRegistry.Get("lid.gameMode");
+            int liveMode = modeItem?.GetInt() ?? 0;
+
             var (ok, msg) = LightInDark.Configuration.PresetStore.LoadFrom(path);
+            modeItem?.SetValueSilently(liveMode);
             if (ok) LightLogger.Log($"[AutoLoadPreset] 开局前已加载上次的改动：{msg}");
             else LightLogger.LogWarning($"[AutoLoadPreset] 加载当前预设失败（不影响开局）：{msg}");
         }
