@@ -233,10 +233,21 @@ public static class DetailPopup
     }
 
     /// <summary>
-    /// 给 TMP 一个**受限的 rect 宽度**，否则 `enableWordWrapping` 是空转（TMP 不会换行 ✗）。
-    /// `MaxWidth &lt;= 0` 时不限制（保持"单行、按字形算宽"的老行为 ✓）
+    /// **默认安全宽度**（菜单坐标系 ≈ 屏幕宽度的 80%）—— 文字超过它就**自动换行** ✓。
+    /// 为什么是这个数：菜单可用横向范围大约 ±2.2（见 `Show` 里的 `pos.x` 夹紧 ✓），
+    /// 所以 4.4 是"不会跑出屏幕"的上限 ✓；想更宽/更窄就用 `DetailPopup.SetStyle` 改 `MaxWidth`（&gt;0 优先于本值 ✓）。
     /// </summary>
-    private static void ApplyWrapWidth()
+    private const float DefaultWrapWidth = 4.4f;
+
+    /// <summary>本帧实际使用的换行宽度：配置里填了就用配置（&gt;0），否则用安全宽度 ✓</summary>
+    private static float ResolveWrapWidth()
+        => Style.MaxWidth > 0f ? Style.MaxWidth : DefaultWrapWidth;
+
+    /// <summary>
+    /// 给 TMP 一个**受限的 rect 宽度**（没有它 `enableWordWrapping` 是空转 ✗）。
+    /// 用户 2026-10-10：框太宽 → 改成"**紧贴文字 + 超屏自动换行**" ✓
+    /// </summary>
+    private static void ApplyWrapWidth(float wrapW)
     {
         try
         {
@@ -244,15 +255,13 @@ public static class DetailPopup
             var rect = _text.rectTransform;
             if (rect == null) return;
 
-            if (Style.MaxWidth > 0f)
-            {
-                rect.sizeDelta = new Vector2(Style.MaxWidth, rect.sizeDelta.y);
-                _text.enableWordWrapping = true;
-            }
-            else
-            {
-                _text.enableWordWrapping = false;
-            }
+            // ★★ 2026-10-10 用户要求：「加上超出屏幕自动换行」✓
+            //    给 TMP 一个**受限宽度** → 文字比它长就自动换行 ✓
+            //    文字比它短时 TMP **不会**换行 ✓ → `textBounds` 仍是自然宽度 → 框依旧紧贴文字 ✓✓
+            //    ⚠️ 高度给足（200）：多行时不能被 rect 高度裁掉 ✗
+            rect.sizeDelta = new Vector2(wrapW, 200f);
+            _text.enableWordWrapping = true;
+            _text.overflowMode = TextOverflowModes.Overflow;   // 别因为 rect 边界裁字 ✗
         }
         catch (Exception ex)
         {
@@ -380,7 +389,7 @@ public static class DetailPopup
     /// 设计（用户让我自己拿主意 ✓）：
     ///   · 底：近黑偏蓝 `#121319`、alpha 0.96 —— 半透明能透出一点背景、又不影响读字 ✓
     ///   · 边：**1px 淡金发丝**（模组强调色，透明度 0.55 —— 克制，不抢眼 ✓）
-    ///   · 圆角：10px ✓
+    ///   · 角：**直角**（用户 2026-10-10 要求去掉圆角 ✓ → `radius: 0` 走硬边分支 ✓）
     /// </summary>
     private static Sprite? EnsurePanelSprite()
     {
@@ -388,7 +397,10 @@ public static class DetailPopup
         {
             var fill = new UColor(0.07f, 0.075f, 0.10f, 0.86f);
             var border = new UColor(1f, 0.90f, 0.63f, 0.55f);
-            return RoundedPanelSprite.Get(fill, border, radius: 10, borderWidth: 5);
+            // ⚠️ 2026-10-10 用户要求：**金边 1px + 直角**（原来 5px 边 + 10px 圆角 ✗）
+            //    · `borderWidth: 1` → 1px 发丝金边 ✓（九宫格边距 = 1px → Sliced 拉伸后**仍是 1px** ✓✓）
+            //    · `radius: 0`     → 走 `RoundedPanelSprite.GetSharp` 的**直角**硬边分支 ✓
+            return RoundedPanelSprite.Get(fill, border, radius: 0, borderWidth: 1);
         }
         catch (Exception ex)
         {
@@ -441,10 +453,12 @@ public static class DetailPopup
             string body = text!.Trim();
             if (canPinByTab) body += PinHint;              // ← 可按 Tab 固定时，空一行补提示
 
-            // ★ 换行宽度：开了 `MaxWidth` 才给 TMP 一个受限的 rect 宽度（否则 TMP 不会换行 ✗）
-            ApplyWrapWidth();
+            // ★ 换行宽度：**始终**受安全宽度约束（用户 2026-10-10："超出屏幕自动换行" ✓）
+            //    —— 文字短时 TMP 不换行、`textBounds` 就是自然宽度 → 框仍然紧贴文字 ✓
+            float wrapW = ResolveWrapWidth();
+            ApplyWrapWidth(wrapW);
 
-            if (_currentText != body || _lastWrapWidth != Style.MaxWidth)
+            if (_currentText != body || _lastWrapWidth != wrapW)
             {
                 _text.text = body;
 
@@ -457,7 +471,7 @@ public static class DetailPopup
                 _text.ForceMeshUpdate(true, true);
 
                 _currentText = body;
-                _lastWrapWidth = Style.MaxWidth;
+                _lastWrapWidth = wrapW;
             }
             FitBox();
 
@@ -602,7 +616,7 @@ public static class DetailPopup
         //   设计取舍（我的审美 ✓）：
         //     · 近黑半透明底 #12131A(0.96) —— 压住背后菜单文字、又不死黑 ✓
         //     · **1px 淡金发丝边框**（用模组自己的强调色 ✓，比粗边框精致得多 ✓）
-        //     · **10px 圆角** ✓（九宫格边距 = 圆角，拉伸不变形 ✓）
+        //     · **直角**（用户 2026-10-10：不要圆角 ✓；九宫格边距 = 1px 边框，拉伸后边框不变粗 ✓）
         _panelSprite = EnsurePanelSprite();
         if (_panelSprite != null && _fill != null)
         {
@@ -660,7 +674,7 @@ public static class DetailPopup
                 clone.enableAutoSizing = false;                    // 必须关：否则改 fontSize 不生效
                 clone.fontSize = source.fontSize * Style.FontScale;      // 比那一行文字再大一点
                 clone.alignment = Style.Align;
-                clone.enableWordWrapping = Style.MaxWidth > 0f;                  // 不换行：宽高由我们按字形算
+                clone.enableWordWrapping = true;                                // ★ 允许换行（超屏自动换行 ✓，见 ApplyWrapWidth）
                 clone.overflowMode = TextOverflowModes.Overflow;   // 别被原版省略号截断
                 clone.raycastTarget = false;
                 clone.color = Style.Text;
@@ -986,7 +1000,10 @@ public static class DetailPopup
                 catch { }
             }
 
-            float width = Mathf.Max(Style.MinWidth, glyphW + Style.PadX * 2f);
+            // ★ 用户 2026-10-10：框**紧贴文字**（= 字形宽度 + 一点留白 ✓），但**绝不超过**安全宽度 ✓
+            //    （换行已经由 `ApplyWrapWidth` 保证 ✓，这里只是再加一道上限，防止某些字体/缩放下溢出 ✗）
+            float wrapLimit = ResolveWrapWidth() + Style.PadX * 2f;
+            float width = Mathf.Clamp(glyphW + Style.PadX * 2f, Style.MinWidth, Mathf.Max(Style.MinWidth, wrapLimit));
             _boxWidth = width;   // ★ 记下实测宽度（跟随鼠标定位要用 ✓）
             float height = Mathf.Max(Style.MinHeight, glyphH + Style.PadY * 2f);
             _boxHeight = height;

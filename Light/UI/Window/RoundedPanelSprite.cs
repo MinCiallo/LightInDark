@@ -38,10 +38,82 @@ internal static class RoundedPanelSprite
     /// </summary>
     /// <param name="radius">圆角半径（像素；九宫格边距就是它 ✓）</param>
     /// <param name="borderWidth">边框粗细（像素；0 = 不画边框）</param>
+    /// <summary>
+    /// **直角矩形**九宫格图（`radius &lt;= 0` 时走这里 ✓）。
+    ///
+    /// 为什么单独一条路而不复用圆角那段：
+    ///   · 圆角那段用"有符号距离场 + 1 像素抗锯齿" ✓ —— 半径 1 时边角会被**软化**，
+    ///     看起来还是圆角/发虚 ✗，而用户要的是"**方正的直角**" ✓
+    ///   · 这里直接按像素格写死：外圈 `borderWidth` 像素 = 边框色（硬边、无抗锯齿 ✓），
+    ///     `filterMode = Point` ✓ → 拉伸后边缘依然是**刀切一样的直角** ✓✓
+    ///
+    /// 九宫格边距 = `borderWidth` ✓ → 配 `SpriteDrawMode.Sliced` 拉伸时**边框粗细不变** ✓
+    /// （这是"1px 边框"能真的保持 1px 的关键 ✓；纯色块拉伸会把边框拉粗 ✗）
+    /// </summary>
+    private static Sprite? GetSharp(Color fill, Color border, int borderWidth)
+    {
+        try
+        {
+            int b = Mathf.Clamp(borderWidth, 1, 8);          // 1px 发丝边 ✓（最大 8，防止画出个巨大边框）
+            var key = new Key { Fill = fill, Border = border, Radius = 0, BorderWidth = b };
+            if (Cache.TryGetValue(key, out var cached) && cached != null) return cached;
+
+            // 图尺寸：外圈 b 像素边框 + 中间 2 像素可拉伸实心区 ✓
+            int size = b * 2 + 2;
+            var tex = new Texture2D(size, size, TextureFormat.RGBA32, false)
+            {
+                wrapMode = TextureWrapMode.Clamp,
+                filterMode = FilterMode.Point,               // ★ 硬边：拉伸后还是直角 ✓
+            };
+
+            var pixels = new Color32[size * size];
+            var fillC = new Color32(
+                (byte)Mathf.RoundToInt(Mathf.Clamp01(fill.r) * 255f),
+                (byte)Mathf.RoundToInt(Mathf.Clamp01(fill.g) * 255f),
+                (byte)Mathf.RoundToInt(Mathf.Clamp01(fill.b) * 255f),
+                (byte)Mathf.RoundToInt(Mathf.Clamp01(fill.a) * 255f));
+            var borderC = new Color32(
+                (byte)Mathf.RoundToInt(Mathf.Clamp01(border.r) * 255f),
+                (byte)Mathf.RoundToInt(Mathf.Clamp01(border.g) * 255f),
+                (byte)Mathf.RoundToInt(Mathf.Clamp01(border.b) * 255f),
+                (byte)Mathf.RoundToInt(Mathf.Clamp01(border.a) * 255f));
+
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    bool isBorder = x < b || y < b || x >= size - b || y >= size - b;
+                    pixels[y * size + x] = isBorder ? borderC : fillC;
+                }
+            }
+
+            tex.SetPixels32(pixels);
+            tex.Apply(false, false);
+
+            // 九宫格边距 = 边框粗细 ✓（拉伸只在中间的 2×2 实心区发生 ✓）
+            var sprite = Sprite.Create(tex, new Rect(0f, 0f, size, size), new Vector2(0.5f, 0.5f),
+                                       100f, 0, SpriteMeshType.FullRect, new Vector4(b, b, b, b));
+            sprite.name = $"LightSharpPanel_{b}";
+
+            Cache[key] = sprite;
+            LightInDark.Core.LightLogger.Log($"[RoundedPanelSprite] 生成**直角**面板图 {size}×{size}（直角 ✓ 边框={b}px ✓）");
+            return sprite;
+        }
+        catch (Exception ex)
+        {
+            LightInDark.Core.LightLogger.LogWarning($"[RoundedPanelSprite.GetSharp] {ex.Message}");
+            return null;
+        }
+    }
+
     public static Sprite? Get(Color fill, Color border, int radius = 10, int borderWidth = 1)
     {
         try
         {
+            // ★ 2026-10-10 用户要求：「把圆角框改成方正的直角框」✓
+            //    → `radius <= 0` 走**直角**分支（不走距离场，边缘是硬像素、filterMode=Point ✓ 绝对方正 ✓）
+            if (radius <= 0) return GetSharp(fill, border, borderWidth);
+
             if (radius < 1) radius = 1;
             if (borderWidth < 0) borderWidth = 0;
             if (borderWidth > radius) borderWidth = radius;
