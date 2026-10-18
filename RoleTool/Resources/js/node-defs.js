@@ -58,10 +58,12 @@ function registerAllNodes() {
         this.addWidget("number", "Cooldown", 20, (v) => { this.properties["Cooldown"] = v; setTimeout(regenerate, 80); });
         this.addProperty("LeftSide", false);
         this.addWidget("toggle", "LeftSide", false, (v) => { this.properties["LeftSide"] = v; setTimeout(regenerate, 80); });
-        this._propKeys = ["Button.<Role>.label", "Hotkey", "Cooldown", "LeftSide"];
+        this.addProperty("MaxUses", 0);
+        this.addWidget("number", "MaxUses", 0, (v) => { this.properties["MaxUses"] = v; setTimeout(regenerate, 80); });
+        this._propKeys = ["Button.<Role>.label", "Hotkey", "Cooldown", "LeftSide", "MaxUses"];
         this.addOutput("点击", "exec");
         this.addOutput("下一", "exec");
-        this.size = [240, 150];
+        this.size = [240, 172];
     }, C.btn.fg, C.btn.bg);
 
     // ---------- 动作 ----------
@@ -343,9 +345,12 @@ function registerAllNodes() {
     defNode("cfg/get", "读取配置", function () {
         this.addProperty("Key", "");
         this.addWidget("text", "Key", "", (v) => { this.properties["Key"] = v; setTimeout(regenerate, 80); });
-        this._propKeys = ["Key"];
+        this.addProperty("Type", "Float");
+        this.addWidget("combo", "Type", "Float", (v) => { this.properties["Type"] = v; setTimeout(regenerate, 80); },
+            { values: ["Float", "Int", "Bool"] });
+        this._propKeys = ["Key", "Type"];
         this.addOutput("值", "number");
-        this.size = [180, 60];
+        this.size = [190, 84];
     }, C.cfg.fg, C.cfg.bg);
 
     // ---------- 动作（扩展）----------
@@ -438,6 +443,27 @@ function registerAllNodes() {
         this.addInput("文本", "string");
         this.addOutput("下一", "exec");
         this.size = [190, 84];
+    }, C.act.fg, C.act.bg);
+
+    defNode("act/guesserShoot", "赌怪开枪", function () {
+        this.addInput("执行", "exec");
+        this.addInput("凶手", "player");
+        this.addInput("目标", "player");
+        this.addProperty("GuessedRole", "");
+        this.addWidget("text", "GuessedRole", "", (v) => { this.properties["GuessedRole"] = v; setTimeout(regenerate, 80); });
+        this._propKeys = ["GuessedRole"];
+        this.addOutput("下一", "exec");
+        this.size = [220, 108];
+    }, C.act.fg, C.act.bg);
+
+    defNode("act/playTone", "播放音效", function () {
+        this.addInput("执行", "exec");
+        this.addProperty("Tone", "Gunfire");
+        this.addWidget("combo", "Tone", "Gunfire", (v) => { this.properties["Tone"] = v; setTimeout(regenerate, 80); },
+            { values: ["Gunload", "Gunfire"] });
+        this._propKeys = ["Tone"];
+        this.addOutput("下一", "exec");
+        this.size = [190, 76];
     }, C.act.fg, C.act.bg);
 
     // ---------- 数值 / 文本（扩展）----------
@@ -539,6 +565,16 @@ function registerAllNodes() {
     defNode("val/allPlayerCount", "玩家总数", function () {
         this.addOutput("值", "number");
         this.size = [180, 60];
+    }, C.val.fg, C.val.bg);
+
+    defNode("val/isCategory", "玩家是否某阵营", function () {
+        this.addInput("玩家", "player");
+        this.addProperty("Category", "Crewmate");
+        this.addWidget("combo", "Category", "Crewmate", (v) => { this.properties["Category"] = v; setTimeout(regenerate, 80); },
+            { values: ["Crewmate", "Impostor", "Neutral", "Ghost"] });
+        this._propKeys = ["Category"];
+        this.addOutput("值", "bool");
+        this.size = [210, 88];
     }, C.val.fg, C.val.bg);
 
     // ---------- 逻辑（扩展）----------

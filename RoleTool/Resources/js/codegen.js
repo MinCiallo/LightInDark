@@ -200,12 +200,14 @@ function emitAbilityButton(node, indent, imports) {
     var cooldown = Number(nodeProp(node, 'Cooldown', 20));
     if (!isFinite(cooldown)) cooldown = 20;
     var leftSide = !!nodeProp(node, 'LeftSide', false);
+    var maxUses = Number(nodeProp(node, 'MaxUses', 0));
 
     var setters = [];
     setters.push('.SetLabelKey(' + csString(labelKey) + ')');
     setters.push('.SetHotkey(KeyCode.' + hotkey + ')');
     setters.push('.SetCooldown(' + csNumber(cooldown) + 'f)');
     if (leftSide) setters.push('.SetLeftSide(true)');
+    if (isFinite(maxUses) && maxUses > 0) setters.push('.SetMaxUses(' + csNumber(maxUses) + ')');
 
     var lines = [];
     lines.push(indentStr(indent) + 'AbilityButtonFactory.Create(this, new RoleButtonConfig()');
@@ -346,7 +348,20 @@ function collectDeclarations(graph, imports) {
         rpcMethods.push(indentStr(2) + '}');
     });
 
-    return { fields: fields, evMethods: evMethods, rpcMethods: rpcMethods };
+    // val/isCategory 用到的阵营判定助手：
+    // 自定义职业取模板阵营；原版兜底职业按 IsImpostor 判定（与手写职业的 FactionOf 一致）
+    var helpers = [];
+    if (findNodes(graph, 'val/isCategory').length) {
+        helpers.push(indentStr(2) + 'private static RoleCategory _FactionOf(LightInDark.Game.Player p)');
+        helpers.push(indentStr(2) + '{');
+        helpers.push(indentStr(3) + 'var template = p?.Role?.Role;');
+        helpers.push(indentStr(3) + 'if (template != null) return template.RoleCategory;');
+        helpers.push(indentStr(3) + 'var data = p?.Control?.Data;');
+        helpers.push(indentStr(3) + 'return data?.Role != null && data.Role.IsImpostor ? RoleCategory.Impostor : RoleCategory.Crewmate;');
+        helpers.push(indentStr(2) + '}');
+    }
+
+    return { fields: fields, evMethods: evMethods, rpcMethods: rpcMethods, helpers: helpers };
 }
 
 // ---------- 类成员 ----------
@@ -471,7 +486,7 @@ function buildRuntimeMembers(meta, lifeNodes, decls, imports) {
             m.push(indentStr(3) + 'try');
             m.push(indentStr(3) + '{');
             m.push(indentStr(4) + 'if (!AmOwner) return;');
-            m.push(indentStr(4) + 'NormalizeVanillaRole();');
+            m.push(indentStr(4) + 'NormalizeVanillaRole(' + (meta.category === 'Impostor' ? 'true' : '') + ');');
             m = m.concat(traverseExec(findNextExec(host, 0), 4, imports));
             m.push(indentStr(3) + '}');
             m.push(indentStr(3) + 'catch (Exception ex)');
@@ -486,6 +501,12 @@ function buildRuntimeMembers(meta, lifeNodes, decls, imports) {
 
         m.push(indentStr(2) + '}');
     });
+
+    // 生成助手（阵营判定等）
+    if (decls.helpers && decls.helpers.length) {
+        m.push('');
+        m = m.concat(decls.helpers);
+    }
 
     // 事件监听方法
     if (decls.evMethods.length) {

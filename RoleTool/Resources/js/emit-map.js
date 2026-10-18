@@ -333,7 +333,9 @@ const EMIT = {
         category: 'cfg', kind: 'data',
         imports: ['using LightInDark.Configuration;'],
         expr: function (node) {
-            return 'ConfigRegistry.GetFloat($"role.{Code}.' + String(nodeProp(node, 'Key', '')) + '")';
+            var t = String(nodeProp(node, 'Type', 'Float'));
+            var getter = t === 'Int' ? 'GetInt' : (t === 'Bool' ? 'GetBool' : 'GetFloat');
+            return 'ConfigRegistry.' + getter + '($"role.{Code}.' + String(nodeProp(node, 'Key', '')) + '")';
         }
     },
 
@@ -427,6 +429,23 @@ const EMIT = {
             return ['LightLogger.Log(' + ctx.resolveString(node, '文本', '""') + ');'];
         }
     },
+    'act/guesserShoot': {
+        category: 'act', kind: 'exec',
+        imports: ['using LightInDark.RPCs;'],
+        lines: function (node, ctx) {
+            return ['RpcDefinitions.GuesserShoot(' +
+                ctx.resolvePlayer(node, '凶手', 'MyPlayer') + '.Control.PlayerId, ' +
+                ctx.resolvePlayer(node, '目标', 'target') + '.Control.PlayerId, ' +
+                csString(nodeProp(node, 'GuessedRole', '')) + ');'];
+        }
+    },
+    'act/playTone': {
+        category: 'act', kind: 'exec',
+        lines: function (node) {
+            var t = String(nodeProp(node, 'Tone', 'Gunfire'));
+            return ['Light.Utilities.ToneSfx.' + (t === 'Gunload' ? 'PlayGunload' : 'PlayGunfire') + '();'];
+        }
+    },
 
     // ---------- 数值 / 文本（扩展，表达式）----------
     'val/playerName': {
@@ -512,6 +531,14 @@ const EMIT = {
         category: 'val', kind: 'data',
         imports: ['using System.Linq;'],
         expr: function () { return 'LightInDark.Game.Player.AllPlayers.Count()'; }
+    },
+    'val/isCategory': {
+        category: 'val', kind: 'data',
+        // _FactionOf 由 codegen 在用到本节点时注入：自定义职业取模板阵营，原版兜底按 IsImpostor 判定
+        expr: function (node, ctx) {
+            return '_FactionOf(' + ctx.resolvePlayer(node, '玩家', 'MyPlayer') + ') == RoleCategory.' +
+                sanitizeId(nodeProp(node, 'Category', 'Crewmate'));
+        }
     },
 
     // ---------- 逻辑（扩展）----------
