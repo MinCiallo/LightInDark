@@ -62,13 +62,11 @@ internal static class RoleVentButtonTicker
             if (vent != null) button.SetEnabled();
             else button.SetDisabled();
 
-            var me = local.transform.position;
-            var cam = Camera.main == null ? Vector3.zero : Camera.main.transform.position;
-            LightLogger.Log($"[Vent] t={Time.time:0} me={me.x:0.0},{me.y:0.0} cam={cam.x:0.0},{cam.y:0.0}"
-                + $" nearest={nearest:0.00}"
-                + $" currentVent={(Vent.currentVent == null ? "null" : Vent.currentVent.Id.ToString())}"
-                + $" target={(vent == null ? "null" : vent.Id.ToString())}"
-                + $" inVent={local.inVent}");
+            // ⚠️ 2026-10-10 用户："游戏内不要打那么多日志，太刷屏了" ✓
+            //    这里原来每条帧都打一条 `[Vent]`（实测一局 1 万多条 ✗）→ 已删除 ✓
+            //    要查通风管逻辑时把下面打开（verbose 通道，默认静默 ✓）：
+            // if (LightLogger.VerboseEnabled)
+            //     LightLogger.LogVerbose($"[Vent] me={local.transform.position} nearest={nearest:0.00} target={(vent == null ? "null" : vent.Id.ToString())}");
         }
         catch { }
     }

@@ -151,6 +151,28 @@ public static class LightLogger
     // =====================================================================
 
     /// <summary>
+    /// **详细诊断日志**（默认 **关闭** ✓）。
+    ///
+    /// 用途：那些"排查时才有用、平时纯刷屏"的日志（例：`[CD]` 冷却状态、`[Vent]` 位置、
+    /// `[Team]` 队伍成员、`ConfigUIPanel.Diag` 之类）走这里 ✓
+    /// → 默认一条都不打 ✓；要排查时把 <see cref="VerboseEnabled"/> 打开即可 ✓
+    ///
+    /// ⚠️ 与 <see cref="LogDebug"/> 的区别：
+    ///   `LogDebug` 只在 **Debug 构建**里存在（`[Conditional("DEBUG")]`）✓ —— 而我们的测试版就是 Debug 构建 ✗
+    ///   所以它挡不住刷屏 ✗。`LogVerbose` 是**运行期开关**，默认 false ✓ 才能真正安静 ✓
+    /// </summary>
+    public static bool VerboseEnabled { get; set; } = false;
+
+    /// <summary>详细诊断日志（默认静默，见 <see cref="VerboseEnabled"/>）。</summary>
+    public static void LogVerbose(string message = "",
+        [System.Runtime.CompilerServices.CallerFilePath] string file = "",
+        [System.Runtime.CompilerServices.CallerLineNumber] int line = 0)
+    {
+        if (!VerboseEnabled) return;      // ★ 在插值之前就返回？—— 不，参数已求值；调用点请用 `if (VerboseEnabled)` 包裹高频项
+        Log(message, toBepInEx: false, file: file, line: line);
+    }
+
+    /// <summary>
     /// 普通信息。
     /// </summary>
     /// <param name="toBepInEx">

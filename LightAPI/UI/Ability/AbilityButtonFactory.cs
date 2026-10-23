@@ -47,9 +47,27 @@ namespace LightInDark.UI.Ability
                 });
         }
 
-        /// <summary>创建持续效果按钮（效果期间可再点取消，见 EffectButton 配置）。</summary>
-        public static EffectButton CreateEffect(RuntimeRoleTemplate role, RoleButtonConfig config, Action onClick)
-            => EffectButton.Create(role, config, onClick);
+        /// <summary>
+        /// 创建持续效果按钮。
+        ///
+        /// ⚠️ 2026-10-10 用户要求："点击可以提前结束效果（**这个用形参决定**）" ✓
+        ///    → `allowCancelByReclick` 就是那个形参 ✓
+        ///      · `true`（默认）= 效果中再点一下 → **提前结束** ✓（结束时才开始冷却 ✓）
+        ///      · `false`      = 效果中点了没反应，等时间自己结束 ✓
+        ///    `effectDuration` = 效果时长（秒 ✓），**独立于按钮冷却** ✓
+        ///      （原来效果时长"复用 Cooldown 字段" ✗ → 用户报"持续时间和冷却时间共用了" ✓
+        ///        现在两者完全独立：效果结束后才开始冷却 ✓）
+        /// </summary>
+        public static EffectButton CreateEffect(RuntimeRoleTemplate role, RoleButtonConfig config, Action onClick,
+                                               float effectDuration = 0f, bool allowCancelByReclick = true)
+        {
+            var button = EffectButton.Create(role, config, onClick);
+            if (button == null) return null;
+
+            button.EffectDuration = effectDuration;              // 0 = 一直持续到手动取消 ✓
+            button.AllowCancelByReclick = allowCancelByReclick;
+            return button;
+        }
 
         /// <summary>创建会议目标按钮（会议中为每位玩家生成目标按钮）。</summary>
         public static MeetingTargetButton CreateMeetingTarget(RuntimeRoleTemplate role,

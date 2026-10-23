@@ -34,10 +34,60 @@ namespace LightInDark.UI.Ability
         private bool _createdOnce;
         public MeetingCorner Corner { get; set; } = MeetingCorner.BottomRight;
 
-        /// <summary>按钮在会议界面中的位置（默认右下角，相对 MeetingHud 根节点）。</summary>
+        /// <summary>
+        /// 按钮在会议界面中的位置。
+        ///
+        /// ⚠️⚠️ 2026-10-10 用户报「会议按钮偏了」（截图里跑到屏幕右下角**外面**去了 ✗）
+        ///   根因：原来用的是**猜的常数**（x=5.1 / y=-2.2 ✗），`MeetingHud` 的坐标系与猜的不一致 ✓
+        ///   ★ 改法（不再猜 ✓）：**锚定原版真实存在的底部元素** ——
+        ///     `MeetingHud.TimerText`（"距离投票结束还有：N 秒"那一行 ✓ 它本来就在右下角 ✓）
+        ///     → 我们的按钮放在它**上方** ✓、与它**同一列** ✓，多个按钮按 slot 往上排 ✓
+        ///     拿不到它时才退回常数（兜底 ✓）
+        /// </summary>
         public Vector3 Position
         {
-            get => _position ?? new Vector3(Corner == MeetingCorner.BottomRight ? 5.1f - _slot * 1.15f : -5.1f + _slot * 1.15f, -2.2f, -1.5f);
+            get
+            {
+                if (_position != null) return _position.Value;
+
+                float x = Corner == MeetingCorner.BottomRight ? 4.35f : -4.35f;   // 兜底
+                float y = -1.75f;
+
+                try
+                {
+                    // ★★ 2026-10-10 第三次调整（用户："更歪了…你要不也试试用 Hud 的自动排列" ✓）
+                    //   前两次都是"锚定会议界面里的某个元素 + 猜偏移" ✗ —— 结果一次跑到屏幕外 ✗、
+                    //   一次跑到面板中间 ✗ → 说明会议界面的坐标系我们没法靠猜对上 ✓
+                    //
+                    //   ★ 最稳的做法：**直接问 HUD 的原版技能按钮**（`HudManager.Instance.AbilityButton`）——
+                    //     它就在"右下角按钮位" ✓，是原版自己排出来的位置 ✓ 一个像素都不用猜 ✓✓
+                    //     → 把会议按钮摆在它**右边一格** ✓（同一行 ✓）
+                    var hud = HudManager.Instance;
+                    var hudButton = hud != null ? hud.AbilityButton : null;
+                    if (hudButton != null && hudButton.transform.parent != null && _meeting != null
+                        && hudButton.transform.parent == _meeting.transform)
+                    {
+                        // 同一个父节点 → 直接复用它算好的 localPosition ✓
+                        var lp = hudButton.transform.localPosition;
+                        x = lp.x + (Corner == MeetingCorner.BottomRight ? 1.0f : -1.0f) * (1f + _slot);
+                        y = lp.y;
+                    }
+                    else
+                    {
+                        // 父节点不同就直接抄"按钮位"的**世界坐标**再换回会议根节点空间 ✓
+                        if (hudButton != null && _meeting != null)
+                        {
+                            var world = hudButton.transform.position;
+                            var local = _meeting.transform.InverseTransformPoint(world);
+                            x = local.x + (Corner == MeetingCorner.BottomRight ? 1.0f : -1.0f) * (1f + _slot);
+                            y = local.y;
+                        }
+                    }
+                }
+                catch { }
+
+                return new Vector3(x, y, -1.5f);
+            }
             set => _position = value;
         }
 

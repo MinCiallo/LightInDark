@@ -222,12 +222,12 @@ public static class MainMenuButtonSpritePatch
                 if (_guardLogs < 20)
                 {
                     _guardLogs++;
-                    LightLogger.Log($"[MainMenuButtonSprite][保图] {label} 被改回（原为 {was}），已重新贴上 · 第 {_watchFrame} 帧");
+                    LightLogger.LogVerbose($"[MainMenuButtonSprite][保图] {label} 被改回（原为 {was}），已重新贴上 · 第 {_watchFrame} 帧");
                 }
                 else if (_guardLogs == 20)
                 {
                     _guardLogs++;
-                    LightLogger.Log("[MainMenuButtonSprite][保图] 日志已达 20 条上限，后续只补图不再记录");
+                    LightLogger.LogVerbose("[MainMenuButtonSprite][保图] 日志已达 20 条上限，后续只补图不再记录");
                 }
             }
             catch (Exception ex)

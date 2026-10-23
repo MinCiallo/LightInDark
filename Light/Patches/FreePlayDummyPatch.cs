@@ -20,6 +20,10 @@ public static class FreePlayDummyPatch
         if (count <= 0) return;
         if (PlayerControl.AllPlayerControls.Count != 1) return;
 
-        Dispatcher.Instance?.StartCoroutine(DummySpawner.CoSpawn(count, null).WrapToIl2Cpp());
+        // ⚠️⚠️ 2026-10-10 用户报「怎么调（甚至调成 0）都是 1 个假人」——
+        //   根因是这里原来用 `StartCoroutine(CoSpawn(...))` ✗：
+        //   `BeginGame` 不会等协程 ✓ → 游戏立刻开始 ✗ → 只有第一个假人赶在世界生成前出现 ✓
+        //   → 改成**同步**一口气全部生成 ✓（见 DummySpawner.SpawnNow 的说明 ✓）
+        DummySpawner.SpawnNow(count);
     }
 }

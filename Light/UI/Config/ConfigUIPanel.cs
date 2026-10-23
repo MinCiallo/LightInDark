@@ -546,7 +546,7 @@ namespace Light.UI.Config
                     if (c != null && c.name.StartsWith(OurPrefix, StringComparison.Ordinal)) ours++;
                 }
 
-                LightLogger.Log($"[ConfigUIPanel.Diag] {where}：容器 '{inner.name}' 子物体 {inner.childCount} 个，" +
+                LightLogger.LogVerbose($"[ConfigUIPanel.Diag] {where}：容器 '{inner.name}' 子物体 {inner.childCount} 个，" +
                                 $"其中我们的 {ours} 个（登记 {_spawned.Count} 个）{(ours > _spawned.Count ? " ← ⚠️ 有孤儿行！" : "")}");
             }
             catch { }
@@ -940,7 +940,7 @@ namespace Light.UI.Config
                     }
                     else
                     {
-                        LightLogger.Log("[ConfigUIPanel.Diag] 原版 GameOptionsMenu.Children 为空（它还没建过行）");
+                        LightLogger.LogVerbose("[ConfigUIPanel.Diag] 原版 GameOptionsMenu.Children 为空（它还没建过行）");
                     }
                 }
             }
@@ -1008,7 +1008,7 @@ namespace Light.UI.Config
         {
             try
             {
-                if (_page == null) { LightLogger.Log("[ConfigUIPanel.Diag] _page 为 null"); return; }
+                if (_page == null) { LightLogger.LogVerbose("[ConfigUIPanel.Diag] _page 为 null"); return; }
 
                 var uiCam = FindUICamera();
                 if (uiCam != null)
@@ -1124,7 +1124,7 @@ namespace Light.UI.Config
                     sb.Append(m.DeclaringType?.Name).Append('.').Append(m.Name).Append(" < ");
                     frames++;
                 }
-                LightLogger.Log($"[ConfigUIPanel.Diag] 第 {_rebuildCount} 次 Rebuild，调用链：{sb}");
+                LightLogger.LogVerbose($"[ConfigUIPanel.Diag] 第 {_rebuildCount} 次 Rebuild，调用链：{sb}");
             }
             catch { }
         }
@@ -1848,7 +1848,7 @@ namespace Light.UI.Config
                 if (!_layoutLogged.Contains(item.Key))
                 {
                     _layoutLogged.Add(item.Key);
-                    LightLogger.Log($"[ConfigUIPanel.Diag] ApplyRowLayout 进入 {item.Key} " +
+                    LightLogger.LogVerbose($"[ConfigUIPanel.Diag] ApplyRowLayout 进入 {item.Key} " +
                                     $"rowType={row.GetType().Name} " +
                                     $"toggle={(realToggle != null)} number={(realNumber != null)} " +
                                     $"string={(realString != null)}");
@@ -2025,7 +2025,7 @@ namespace Light.UI.Config
                     same = (t != null && t.GetInstanceID() == v.GetInstanceID()) ? "★同一个TMP！" : "不同对象";
                 }
 
-                LightLogger.Log($"[ConfigUIPanel.Diag] 行 {item.Key} 标题TMP={titleInfo} | " +
+                LightLogger.LogVerbose($"[ConfigUIPanel.Diag] 行 {item.Key} 标题TMP={titleInfo} | " +
                                 $"数值TMP={valueInfo} | {same}");
             }
             catch { }
@@ -2131,7 +2131,7 @@ namespace Light.UI.Config
                 if (!_typeLogged.Contains(item.Key))
                 {
                     _typeLogged.Add(item.Key);
-                    LightLogger.Log($"[ConfigUIPanel.Diag] 行 {item.Key} 真实组件：" +
+                    LightLogger.LogVerbose($"[ConfigUIPanel.Diag] 行 {item.Key} 真实组件：" +
                                     $"ToggleOption={(realToggle != null)} " +
                                     $"NumberOption={(realNumber != null)} " +
                                     $"StringOption={(realString != null)} " +
@@ -2191,7 +2191,7 @@ namespace Light.UI.Config
                     if (item.Type == ConfigType.Bool && _bindLogs < 10)
                     {
                         _bindLogs++;
-                        LightLogger.Log($"[ConfigUIPanel.Diag] Bind 后 {item.Key} " +
+                        LightLogger.LogVerbose($"[ConfigUIPanel.Diag] Bind 后 {item.Key} " +
                                         $"itemBool={item.GetBool()} " +
                                         $"CheckMark={(realToggle?.CheckMark == null ? "null" : realToggle.CheckMark.enabled.ToString())} " +
                                         $"go.active={clone.gameObject.activeInHierarchy}");
@@ -2457,7 +2457,7 @@ namespace Light.UI.Config
                     _refreshLogs++;
                     var en = ConfigRegistry.Get(EnabledKey);
                     var dc = ConfigRegistry.Get(DebugKey);
-                    LightLogger.Log($"[ConfigUIPanel.Diag] Refresh 被调用 | " +
+                    LightLogger.LogVerbose($"[ConfigUIPanel.Diag] Refresh 被调用 | " +
                                     $"enabled 值={(en == null ? "null" : en.GetBool().ToString())} | " +
                                     $"dummyCount.VisibleWhen={(dc?.VisibleWhen == null ? "NULL_LAMBDA" : "有")} " +
                                     $"IsVisible={dc?.IsVisible ?? false} | built=[{string.Join(",", _builtKeys)}]");
@@ -2514,7 +2514,7 @@ namespace Light.UI.Config
                 if (_rowRefreshLogs < 12)
                 {
                     _rowRefreshLogs++;
-                    LightLogger.Log($"[ConfigUIPanel.Diag] RefreshRow 行 key={item.Key} " +
+                    LightLogger.LogVerbose($"[ConfigUIPanel.Diag] RefreshRow 行 key={item.Key} " +
                                     $"type={item.Type} value={item.Value} bool={item.GetBool()} " +
                                     $"有驱动器={_drivers.ContainsKey(item)}");
                 }
@@ -2566,7 +2566,7 @@ namespace Light.UI.Config
             if (changed && _rebuildLogs < 12)
             {
                 _rebuildLogs++;
-                LightLogger.Log($"[ConfigUIPanel.Diag] NeedRebuild=true 原因：{reason} | " +
+                LightLogger.LogVerbose($"[ConfigUIPanel.Diag] NeedRebuild=true 原因：{reason} | " +
                                 $"want=[{string.Join(",", _wantKeys)}] built=[{string.Join(",", _builtKeys)}]");
             }
 
@@ -3291,6 +3291,40 @@ namespace Light.UI.Config
         }
 
         /// <summary>按当前值刷新所有显示部件。</summary>
+        /// <summary>
+        /// **照抄原版 `NumberOption.AdjustButtonsActiveState()`**（19.0 L147-165 ✓）——
+        /// 按"当前值是否已经顶到 min/max"来决定 +/- 按钮能不能点 ✓。
+        ///
+        /// ⚠️ 原版那个方法是 `private` ✗ 调不到；而且它只在 `Increase()/Decrease()` 里被调用 ✗，
+        ///    我们是**直接写配置值**的 ✓ → 不补这一次刷新，按钮就会一直亮着 ✓（用户报的 bug ✓）。
+        /// </summary>
+        private void RefreshNumberButtons()
+        {
+            try
+            {
+                var number = _behaviour != null ? _behaviour.GetComponent<NumberOption>() : null;
+                if (number == null) return;
+
+                float v = _item.GetFloat();
+                float min = _item.Min;
+                float max = _item.Max;
+
+                var minus = number.MinusBtn;
+                var plus = number.PlusBtn;
+
+                // 与原版完全相同的判断顺序 ✓（先 min 后 max，最后两个都可点）
+                bool atMin = v <= min + 1e-4f;
+                bool atMax = v >= max - 1e-4f;
+
+                if (minus != null) minus.SetInteractable(!atMin);
+                if (plus != null) plus.SetInteractable(!atMax);
+            }
+            catch (Exception ex)
+            {
+                LightLogger.LogWarning($"[ConfigRowDriver.RefreshNumberButtons] {ex.Message}");
+            }
+        }
+
         public void RefreshVisual()
         {
             try
@@ -3326,7 +3360,7 @@ namespace Light.UI.Config
                         {
                             var t = GetTitleText();
                             bool same = t != null && t.GetInstanceID() == valueText.GetInstanceID();
-                            LightLogger.Log(
+                            LightLogger.LogVerbose(
                                 $"[ConfigRowDriver.Diag] 行 {_item.Key} " +
                                 $"标题TMP={(t == null ? "null" : t.name + "#" + t.GetInstanceID())} " +
                                 $"数值TMP={valueText.name}#{valueText.GetInstanceID()} " +
@@ -3334,6 +3368,17 @@ namespace Light.UI.Config
                                 $"数值文字='{valueText.text}' | path={PathOf(valueText.transform)}");
                         }
                     }
+
+                    // ★★ 2026-10-10 修 bug：「配置项到了上下限，+/- 按钮还亮着，再点两下才灰」
+                    //
+                    //   原版 `NumberOption.AdjustButtonsActiveState()`（19.0 L147-165）负责
+                    //   根据 `Value == ValidRange.min/max` 把 `MinusBtn` / `PlusBtn` 设成不可交互 ✓
+                    //   ⚠️ 它只在 `Increase()/Decrease()` 里被调用 ✗ —— 而我们**直接写** `item` 的值 ✗
+                    //      → 从来不刷新按钮状态 ✓ 而 `Increase()` 在最大值时又**提前 return** ✗
+                    //      → 于是"再点两下才置灰" ✓✓
+                    //
+                    //   它本身是 `private` 的 ✗ 调不到 → 这里照它那 10 行写一份 ✓
+                    RefreshNumberButtons();
                 }
             }
             catch (Exception ex)

@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using System.Linq;
 using LightInDark.Core;
 using LightInDark.Game;
@@ -34,9 +34,11 @@ namespace LightInDark.Roles
 
             var unity = viewer.Role.Color.ToUnityColor();
             var members = Members(code).ToList();
-            var all = LightInDark.Game.GameManager.Instance?.AllPlayers;
-            LightLogger.Log($"[Team] code={code} count={members.Count} local={LightInDark.Game.GameManager.Instance?.LocalPlayer?.Name}"
-                + (all == null ? " all=null" : " | " + string.Join(" | ", all.Select(x => $"{x.Name}:{x.Role?.Role?.CodeName ?? "-"}:{CodeOf(x) ?? "-"}"))));
+
+            // ⚠️ 2026-10-10 用户："游戏内不要打那么多日志，太刷屏了" ✓
+            //    这里原来有一条**每帧**的 `[Team]` 诊断（实测一局 1 万多条 ✗）→ 已删除 ✓
+            //    要排查队伍/名字颜色时，把下面这行取消注释即可（走 verbose 通道，默认静默 ✓）：
+            // LightLogger.LogVerbose($"[Team] code={code} count={members.Count}");
 
             foreach (var member in members)
             {

@@ -143,9 +143,14 @@ namespace LightInDark.UI.Ability
                     if (_actionButton != null) _actionButton.SetUsesRemaining(_usesLeft);
                 }
 
-                // 开始效果（效果时长复用 Cooldown 字段），并进入冷却
+                // ⚠️⚠️ 2026-10-10 用户报「效果按钮持续时间和冷却时间共用了」——
+                //   原来这里是：`StartEffect(); StartCooldown();` ✗ —— **点一下就同时开了两条计时** ✓
+                //   而且效果期间还会 `TickCooldown()` ✗ → 效果结束时冷却也快走完了 ✓
+                //   → 看起来就是"效果时长 = 冷却时长"✗
+                //
+                //   ★ 原版语义（参考"解除变形"）：**先跑效果，效果结束后才开始冷却** ✓
+                //     → 这里只 StartEffect() ✓；`StopEffect()` 里才开始冷却 ✓
                 StartEffect();
-                if (_config.Cooldown > 0f) StartCooldown();
             }
             catch (Exception ex)
             {
@@ -196,7 +201,16 @@ namespace LightInDark.UI.Ability
                 EffectTimer.Stop();
                 _onEffectEnd?.Invoke();
                 ResetGraphicPos();          // ★ 停止抖动、图标回原位 ✓
-                if (ShowEffectCountdown && EffectLabel != null)
+
+                // ★ 把冷却数字那层改回原版颜色（NOS 也是在结束时还原 ✓）
+                var action = Button;
+                if (action != null && action.cooldownTimerText != null)
+                    action.cooldownTimerText.color = NormalColor;
+
+                // ★ 效果结束 → **现在**才开始冷却（原版语义 ✓，见 HandleClick 的说明）
+                if (_config.Cooldown > 0f) StartCooldown();
+
+                if (EffectLabel != null)
                 {
                     _actionButton.buttonLabelText.color = NormalColor;
                     _actionButton.buttonLabelText.text = _config.ResolvedLabel;
@@ -218,20 +232,13 @@ namespace LightInDark.UI.Ability
                 {
                     EffectTimer.Tick(Time.deltaTime);
 
-                    // ⚠️ 2026-10-10 用户报「字体不对」—— 这里原来把**倒计时数字写进了按钮标签**
-                    //    `buttonLabelText`（那是"技能名"的位置 ✗ 用的是标签字体/字号）✗
-                    //    原版是把数字写在 `cooldownTimerText` 里、而且最后 3 秒才出现 ✓
-                    //    → 现在交给 `UpdateCooldownDisplay()` 里的 `ApplyFillUpDisplay` ✓（见下）
+                    // ⚠️ 2026-10-10：效果期间**不再推进冷却** ✗
+                    //   （原来这里调 `TickCooldown()` → 效果和冷却同时走 → 用户看到的"共用了" ✓）
+                    //   原版语义：效果结束才开始冷却 ✓（现在由 `StopEffect()` 负责 ✓）
 
                     if (_effectTimer <= 0f)
                     {
                         StopEffect();
-                        if (_actionButton != null)
-                        {
-                            _actionButton.SetCooldownFill(0f);
-                            if (_actionButton.cooldownTimerText != null)
-                                _actionButton.cooldownTimerText.gameObject.SetActive(false);
-                        }
                     }
                     // 效果期间：不显示冷却（效果倒计时已展示）
                 }
@@ -241,15 +248,7 @@ namespace LightInDark.UI.Ability
                     return;
                 }
 
-                // ★ 第 4 批：效果期间也走**统一的 UI 刷新出口** ——
-                //   绿色提示的补色逻辑已经并进 `Refresh()` 覆写里 ✓（原来是散在这里的 ✗）
-                //
-                // ★★ 2026-10-06 用户报「点击后进入 CD，但 **CD 不转**」——
-                //    根因就是这里：效果分支原来**完全不推冷却** ✗
-                //    → 持续型效果（`EffectDuration <= 0`，例如"一直开着"的技能）
-                //      期间 CD 永远停在原地，点击还能再触发一次 ✗✗
-                //    修法：效果期间**照常推进冷却** ✓（Nebula 里效果与冷却也是同一条计时链 ✓）
-                TickCooldown();
+                // ★ 第 4 批：效果期间也走**统一的 UI 刷新出口** ✓（绿色补色已并进 `Refresh()` ✓）
                 _config.OnUpdate?.Invoke(this);
                 Refresh();
 
@@ -276,8 +275,27 @@ namespace LightInDark.UI.Ability
         {
             base.Refresh();
 
-            if (_inEffect && ShowEffectCountdown && EffectLabel != null)
-                _actionButton.buttonLabelText.color = EffectColor;
+            // ★ 用户 2026-10-10："我想要绿色字"（上一版只改了标签 ✗ → 看不到绿 ✓）
+            //
+            //   ★ 看 NOS 的做法（`Nebula/Objects/CustomButton.cs:858-862`）：
+            //     它改的是 **`cooldownTimerText`** 的颜色 ——
+            //     `actionButton.cooldownTimerText.color = new Color(0F, 0.8F, 0F);`
+            //     而不是按钮标签 ✓ 因为**标签每帧都会被 `ActionButton.SetEnabled/SetDisabled` 写回白色** ✗
+            //     （`SetEnabled` 里 `this.buttonLabelText.color = Palette.EnabledColor;` ✓）
+            //
+            //   → 现在两处都上色 ✓：
+            //     ① 冷却数字层（`cooldownTimerText`）—— 和 NOS 完全一样，不会被覆盖 ✓
+            //     ② 标签层（`buttonLabelText`）—— 写在 `base.Refresh()` 之后，本帧最后写 ✓
+            //    ⚠️ 顺序很重要：先 `base.Refresh()`（它内部会 SetEnabled 写白 ✗）再写绿 ✓
+            if (!_inEffect) return;
+
+            var action = Button;
+            if (action == null) return;
+
+            var number = action.cooldownTimerText;
+            if (number != null && number.color != EffectColor) number.color = EffectColor;
+
+            if (EffectLabel != null) _actionButton.buttonLabelText.color = EffectColor;
         }
 
         /// <summary>
@@ -308,7 +326,26 @@ namespace LightInDark.UI.Ability
                 //      · 数字写在 `cooldownTimerText`、**最后 3 秒才出现** ✓
                 //      · 剩余 < 阈值时**图标抖动**（可关 ✓，见 SetEndingJitter ✓）
                 //    ⚠️ 原来是"进度 = 剩余比例"的相反方向 ✗、还把数字塞进标签 ✗
+                // ⚠️ 顺序：先 ApplyFillUpDisplay（它会按原版"最后 3 秒才显示数字"的规则**隐藏**数字 ✗），
+                //    再强行把数字点亮成绿色 ✓ —— 反过来就会被它盖掉 ✓
                 ApplyFillUpDisplay(_effectTimer, EffectDuration, _jitterEnabled, _jitterThreshold);
+
+                // ★★ 2026-10-10 用户："绿字确实出来了，但我想要点击时就显示绿字显示剩余时间" ✓
+                //   原版 `SetFillUp` 的数字是"最后 3 秒才出现" ✗ → 效果按钮上前几秒只能看进度环 ✓
+                //   → 效果按钮**全程**显示剩余秒数 ✓（`Mathf.CeilToInt` 与原版同一取整 ✓），并且是绿色 ✓
+                var action = Button;
+                if (action != null && ShowEffectCountdown)
+                {
+                    var t = action.cooldownTimerText;
+                    if (t != null)
+                    {
+                        float remain = _effectTimer;
+                        if (remain < 0f) remain = 0f;
+                        t.text = Mathf.CeilToInt(remain).ToString();
+                        t.color = EffectColor;
+                        if (!t.gameObject.activeSelf) t.gameObject.SetActive(true);
+                    }
+                }
             }
             catch (Exception ex)
             {

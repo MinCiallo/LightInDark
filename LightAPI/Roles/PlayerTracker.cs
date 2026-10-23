@@ -124,7 +124,7 @@ namespace LightInDark.Roles
                 }
                 catch { }
 
-                LightLogger.Log($"[Tracker] 存活={LightInDark.Game.GameManager.Instance.AllPlayers.Count()} " +
+                LightLogger.LogVerbose($"[Tracker] 存活={LightInDark.Game.GameManager.Instance.AllPlayers.Count()} " +
                                 $"源={(src != null ? src.PlayerId.ToString() : "null")} " +
                                 $"目标={targetName} 距离={dist:0.00}/{_maxDistance:0.00} " +
                                 $"body={body} outline={outline:0.##} colorA={colorA:0.##} longParts={longParts}");

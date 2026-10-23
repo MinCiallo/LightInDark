@@ -176,7 +176,7 @@ namespace LightInDark.UI.Ability
                     }
                 }
 
-                LightLogger.Log($"[UV] 按钮={_gameObject?.name} sprite={spriteName} " +
+                LightLogger.LogVerbose($"[UV] 按钮={_gameObject?.name} sprite={spriteName} " +
                                 $"spriteUvBounds={bounds} _NormalizedUvs=({uv.x:0.###},{uv.y:0.###},{uv.z:0.###},{uv.w:0.###})");
             }
             catch (Exception ex)

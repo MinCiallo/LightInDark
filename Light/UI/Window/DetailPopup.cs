@@ -816,7 +816,7 @@ public static class DetailPopup
             if (changed)
             {
                 string spriteState = _fill != null && _fill.sprite != null ? "有" : "空";
-                LightLogger.Log($"[DetailPopup] 渲染设置已同步：layer(排序)={layerId} 参考order={order}（框 {order + margin} / 文字 {order + margin + 1}），GameObject.layer={goLayer}，背景图={spriteState}");
+                LightLogger.LogVerbose($"[DetailPopup] 渲染设置已同步：layer(排序)={layerId} 参考order={order}（框 {order + margin} / 文字 {order + margin + 1}），GameObject.layer={goLayer}，背景图={spriteState}");
             }
         }
         catch (Exception ex)
@@ -960,7 +960,7 @@ public static class DetailPopup
             {
                 _loggedW = width;
                 _loggedH = height;
-                LightLogger.Log($"[DetailPopup] 字形 {glyphW:F3}x{glyphH:F3} → 框 {width:F3}x{height:F3}，文字来源={(_textSourceIsRowText ? "行内文字" : "模板")}，字号={(_text != null ? _text.fontSize : 0f):F2}，缩放={(_text != null ? _text.transform.lossyScale.x : 0f):F3}");
+                LightLogger.LogVerbose($"[DetailPopup] 字形 {glyphW:F3}x{glyphH:F3} → 框 {width:F3}x{height:F3}，文字来源={(_textSourceIsRowText ? "行内文字" : "模板")}，字号={(_text != null ? _text.fontSize : 0f):F2}，缩放={(_text != null ? _text.transform.lossyScale.x : 0f):F3}");
             }
 
             // 把文字居中到框心：文字局部坐标 = -字形中心

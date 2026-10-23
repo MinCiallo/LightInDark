@@ -244,7 +244,7 @@ namespace LightInDark.UI.Ability
                 try { intro = IntroCutscene.Instance != null; } catch { }
                 try { var mg = Minigame.Instance; if (mg != null) mini = mg.GetType().Name; } catch { }
 
-                LightLogger.Log($"[CD] {GetType().Name}({_config.Label}) 剩余={_cooldownTimer:0.00}/{_config.Cooldown:0.00} " +
+                LightLogger.LogVerbose($"[CD] {GetType().Name}({_config.Label}) 剩余={_cooldownTimer:0.00}/{_config.Cooldown:0.00} " +
                                 $"推进={tickGate} 配置谓词={configGate} | inVent={inVent} moveable={movable} " +
                                 $"killTimer={killTimer} 会议={meeting} 开场={intro} 小游戏={mini}");
             }

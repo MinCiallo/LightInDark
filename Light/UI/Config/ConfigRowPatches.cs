@@ -238,7 +238,7 @@ namespace Light.UI.Config
             if (_toggleLogs < 12)
             {
                 _toggleLogs++;
-                LightLogger.Log($"[ConfigRowPatches.Diag] TogglePostfix 行 {item.Key} " +
+                LightLogger.LogVerbose($"[ConfigRowPatches.Diag] TogglePostfix 行 {item.Key} " +
                                 $"CheckMark={( __instance.CheckMark == null ? "null" : __instance.CheckMark.enabled.ToString())} " +
                                 $"GetBool={__instance.GetBool()} " +
                                 $"ItemValueBefore={item.Value}");
@@ -357,7 +357,7 @@ namespace Light.UI.Config
                     }
                 }
 
-                LightLogger.Log($"[ConfigRowPatches.Diag] {where} 行 '{go.name}' id={behaviour.GetInstanceID()} " +
+                LightLogger.LogVerbose($"[ConfigRowPatches.Diag] {where} 行 '{go.name}' id={behaviour.GetInstanceID()} " +
                                 $"容器内同名 {duplicates} 个 | 会话内共实例化 {ConfigUIPanel.InstantiatedCount} 次" +
                                 (duplicates > 1 ? "  ← ⚠️ 重复建行！" : ""));
             }
