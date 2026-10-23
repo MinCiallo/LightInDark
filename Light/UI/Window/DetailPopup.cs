@@ -432,21 +432,15 @@ public static class DetailPopup
             _anchor = anchor;
             _canPin = canPinByTab;
 
-            // ① 每次显示都校验一次背景贴图：主菜单卸载后缓存的 WhiteSprite 会变成"假 null"，
-            //    那样 SpriteRenderer 的 sprite 为空 → 框和背景整个不渲染（只有 TMP 文字还在）。
             RefreshPartSprites();
 
-            // ①' 从配置读一遍样式（配色/字号/留白/尺寸/边框/对齐）—— 游戏里改完立刻生效 ✓
             ApplyConfig();
 
-            // ② 渲染设置：GameObject.layer（相机 cullingMask）+ sortingLayer/Order 都跟着行走
             ApplyRenderSettings(anchor);
 
             string body = text!.Trim();
-            if (canPinByTab) body += PinHint;              // ← 可按 Tab 固定时，空一行补提示
+            if (canPinByTab) body += PinHint;              
 
-            // ★ 换行宽度：**始终**受安全宽度约束（用户 2026-10-10："超出屏幕自动换行" ✓）
-            //    —— 文字短时 TMP 不换行、`textBounds` 就是自然宽度 → 框仍然紧贴文字 ✓
             float wrapW = ResolveWrapWidth();
             ApplyWrapWidth(wrapW);
 
@@ -454,12 +448,6 @@ public static class DetailPopup
             {
                 _text.text = body;
 
-                // ⚠️⚠️ 2026-10-06 用户报「鼠标从 A 移到 B，框的大小还是 A 的，再放一次才对」——
-                //    根因：`Ensure()` 里 `_root.SetActive(false)` ✓，而这里是**先 FitBox 再 SetActive(true)** ✗
-                //    → `ForceMeshUpdate()` 在**未激活**的对象上**不生效** ✗
-                //      → `textBounds` 还是**上一次**那份 → 框尺寸慢一拍 ✓✓
-                //    TMP 的第一个参数就是治这个的：`ignoreActiveState = true` ✓
-                //    （第二个 `forceTextReparsing = true` 保证这次一定重排 ✓）
                 _text.ForceMeshUpdate(true, true);
 
                 _currentText = body;
@@ -467,25 +455,16 @@ public static class DetailPopup
             }
             FitBox();
 
-            // ⚠️ 用户报「复盘按钮和设置按钮重叠」那次同款坑：位置会被原版布局组件每帧算回去 ✗
-            //    （这里是**我们自己的**位置计算，所以只需按 Nebula 的做法**跟随鼠标**即可 ✓）
-            //    抄 Nebula `MouseOverPopup`（`NebulaManager.cs:133-137`）：
-            //      鼠标在**右半屏** → 框摆到光标左侧；在**下半屏** → 框摆到光标上方（自动避让边缘 ✓）
             Vector3 pos;
             if (TryFollowMouse(anchor, out var mousePos))
             {
-                // ★★ 照搬 Nebula `MouseOverPopup`（`NebulaManager.cs:133-155`）：
-                //    ① 按鼠标所在**象限**决定把框摆到哪一侧（`isLeft/isLower` ✓）
-                //    ② 位置 = 光标位置 − **对角锚点** → 框整个落在光标"反方向"那一侧 ✓
-                //    ③ 再夹进屏幕内（Nebula 的四边修正 ✓）
                 bool mouseOnLeft = Input.mousePosition.x < Screen.width * 0.5f;
                 bool mouseOnLower = Input.mousePosition.y < Screen.height * 0.5f;
 
                 float boxW = Mathf.Max(Style.MinWidth, _boxWidth);
                 float boxH = Mathf.Max(Style.MinHeight, _boxHeight);
 
-                const float gap = 0.15f;      // Nebula 的 0.15 ✓
-                // 锚点 = 框的"靠近光标的那条边"（鼠标在左 → 框摆在光标右侧 → 锚点取左边界 ✓）
+                const float gap = 0.15f;
                 float anchorX = mouseOnLeft ? boxW * 0.5f + gap : -boxW * 0.5f - gap;
                 float anchorY = mouseOnLower ? boxH * 0.5f + gap : -boxH * 0.5f - gap;
 
@@ -493,7 +472,6 @@ public static class DetailPopup
             }
             else
             {
-                // 拿不到鼠标空间时退回老写法（挂在被悬浮行下面 ✓）
                 pos = anchor != null && _parent != null ? _parent.InverseTransformPoint(anchor.position) : Vector3.zero;
                 pos.y -= _boxHeight * 0.5f + 0.10f;
             }
@@ -501,23 +479,15 @@ public static class DetailPopup
             _root.transform.localPosition = pos;
             ClampToViewport();
 
-            // ⚠️⚠️ 2026-10-06 用户报「层级还是有问题」—— 日志实证根因在 **z**，不在排序号 ✗：
-            //     [诊断] 参考行 : sorting=0(Default)/0    world=(…, …, **-910.00**)
-            //     [诊断] 框-底  : sorting=0(Default)/2000 world=(…, …,     **0.00**)
-            //   挂到 UI 相机下之后位置是 `ScreenToWorldPoint` 算出来的 → z 变成 0 ✗，
-            //   而设置菜单整体在 z = -910 ✓ → 前后关系完全错位 ✓
-            //   ★ AGENTS §4.3.2 的规矩正是治这个的：
-            //     "**z 直接用被参考行的 z**，前后关系交给 sortingOrder，**别猜方向**" ✓
-            //   → 把框搬到"行自己的 z 再往前 5"（往前一点，保证不被同一排序层的邻居压住 ✓）
             float refZ = GetReferenceWorldZ(anchor, _root.transform.position.z);
             var wp = _root.transform.position;
             _root.transform.position = new Vector3(wp.x, wp.y, refZ - 5f);
 
             _showing = true;
-            _pinned = false;                               // 每次悬停都是"未固定"状态
+            _pinned = false;
             _root.SetActive(true);
 
-            LogDiagnostics(anchor);                        // 一次性诊断（最多 6 次）
+            LogDiagnostics(anchor);
         }
         catch (Exception ex)
         {
@@ -525,7 +495,6 @@ public static class DetailPopup
         }
     }
 
-    /// <summary>隐藏提示框（被 Tab 钉住时不隐藏）。</summary>
     public static void Hide()
     {
         try
@@ -540,7 +509,6 @@ public static class DetailPopup
         }
     }
 
-    /// <summary>每帧调用（挂在设置菜单的 Update 上）：处理 Tab 固定 / 取消固定。</summary>
     public static void Update()
     {
         try
@@ -554,7 +522,7 @@ public static class DetailPopup
             _pinned = !_pinned;
             if (!_pinned && !_showing && _root != null)
             {
-                _root.SetActive(false);                    // 取消固定时鼠标已移开 → 直接收起
+                _root.SetActive(false);
             }
             LightLogger.Log($"[DetailPopup] Tab → {(_pinned ? "已固定介绍" : "取消固定")}");
         }
@@ -575,8 +543,6 @@ public static class DetailPopup
         if (_root != null) _root.SetActive(false);
     }
 
-    // ────────────────────────────────────────────────────────────────
-
     private static void Ensure(Transform parent, Transform? anchor)
     {
         if (_root != null && _sourceParent == parent) return;
@@ -586,45 +552,34 @@ public static class DetailPopup
         _sourceParent = parent;
         _root = new GameObject("LightDetailPopup");
 
-        // ★★ 照搬 Nebula `MouseOverPopup.Awake/SetWidgetOld`（`NebulaManager.cs:131`）：
-        //    `transform.SetParent(FindCamera(uiLayer).transform)` —— **挂到 UI 相机下面** ✓
-        //    为什么必须这样：挂在被悬浮那一行的父物体下时，原版布局组件（`AspectPosition` 等）
-        //    会**每帧**把位置算回去（AGENTS §4.4）→ 框"跟不动/位置乱跳" ✗
-        //    （用户 2026-10-06 报的按钮重叠就是同一个坑 ✓）
         var cam = FindUiCameraFor(anchor != null ? anchor : parent);
         if (cam != null) _root.transform.SetParent(cam.transform, false);
-        else _root.transform.SetParent(parent);            // 找不到相机就退回原父物体 ✓
-        // 坐标必须相对于真正的父物体，不能仍使用原菜单行的父级。
+        else _root.transform.SetParent(parent);
+
         _parent = _root.transform.parent;
 
         _root.transform.localScale = Vector3.one;
 
         var white = GetWhiteSprite();
 
-        // 半透明灰底
+
         _fill = MakePart("Fill", Vector3.zero, Style.Fill, white);
 
-        // ★ 背景 = **代码画的圆角面板**（用户 2026-10-06：外部素材难看，让代码画一份 ✓）
-        //   设计取舍（我的审美 ✓）：
-        //     · 近黑半透明底 #12131A(0.96) —— 压住背后菜单文字、又不死黑 ✓
-        //     · **1px 淡金发丝边框**（用模组自己的强调色 ✓，比粗边框精致得多 ✓）
-        //     · **直角**（用户 2026-10-10：不要圆角 ✓；九宫格边距 = 1px 边框，拉伸后边框不变粗 ✓）
+
         _panelSprite = EnsurePanelSprite();
         if (_panelSprite != null && _fill != null)
         {
             _fill.sprite = _panelSprite;
             _fill.drawMode = SpriteDrawMode.Sliced;
-            _fill.color = UColor.white;   // 颜色已经画进图里了 → 别再多乘一次 ✗
+            _fill.color = UColor.white;
         }
-        HidePart(_frame);   // 不再用 Nebula 的边框图 ✓
+        HidePart(_frame);
 
-        // 淡金细边框（四条细条；z 略小 = 更靠前）
         _top = MakePart("BorderTop", Vector3.zero, Style.Border, white);
         _bottom = MakePart("BorderBottom", Vector3.zero, Style.Border, white);
         _left = MakePart("BorderLeft", Vector3.zero, Style.Border, white);
         _right = MakePart("BorderRight", Vector3.zero, Style.Border, white);
 
-        // 文字：优先克隆 anchor（那一行）自己的文字，字号/字体/缩放就和那一行完全一致
         _text = CreateText(_root.transform, anchor);
 
         _root.SetActive(false);

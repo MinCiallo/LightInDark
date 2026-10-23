@@ -77,14 +77,6 @@ public partial class LightPlugin : BasePlugin
 
             Harmony.PatchAll(); // 鸿蒙
 
-            // ═══════════════════════════════════════════════════════════════
-            //  ★★★ 2026-10-11 **Nova 全部删除** ✓（用户："我们全删，只保留那个好不容易搞好的页签"
-            //      "然后在里面塞一个 HudUI 按钮做测试，点击弹窗口显示"测试"，布局啥的我们自己来" ✓）
-            //   → `Light\UI\NovaFull\`（758 个文件）与 `Light.Nova\`（独立工程 + 30 MB 资源）已删 ✓
-            //   → 页面内容改由我们自己的 `NovaTabBarPatch` 画 ✓（里面就是 HudUI 按钮 ✓）
-            //   → 之前那段 `NovaBootstrap.Ensure()` 一并删除 ✓（那个文件也删了 ✓）
-            // ═══════════════════════════════════════════════════════════════
-
             // CurrentModRegistration.ModRegistrationGuidString = ModGuid;   // [禁用-MCI]
             Log.LogInfo($"Mod Guid {CurrentModRegistration.ModRegistrationGuidString},解析{CurrentModRegistration.TryGetModRegistrationGuid(out _)},协议版本{Constants.GetBroadcastVersion()}");
             if (!VersionMaker.MakeVersion())
@@ -100,21 +92,12 @@ public partial class LightPlugin : BasePlugin
             PaletteColorOverride.Apply(); // 我也不知道。
             LoadRole(); // 加载职业
 
-            // ★ 自定义装扮插件（CosmicAddons/*.zip）：发现 + 解析 + 建注册表 ✓
-            //   （注入游戏的 patch 在 Light\Cosmic\CosmicPatches.cs ✓；目录不存在会自动创建 ✓）
             try { Cosmic.CosmicAddonLoader.Load(); }
             catch (Exception ex) { LightLogger.LogWarning($"[Load] 装扮插件加载失败：{ex.Message}"); }
             RoleConfigRegistrar.Register();   // 职业配置块 + 职业专属项
-            Light.Config.GameModeConfigRegistrar.Register();
-            Light.Config.AssignmentConfigRegistrar.Register();   // 分配设置（船员/内鬼/中立上限，审查 B7）
-            Light.Config.HudLayoutConfigRegistrar.Register();    // HUD 布局（小 HUD / 按钮排列，第 5 批）
-            // ⚠️ 详情框的配置项**已删除**（用户 2026-10-10："把详情框的配置项删掉，写死就行" ✓）
-            //    样式现在写死在 `DetailPopupStyle.Default` 里 ✓（要改就改那一个地方 ✓）
-            //    `DetailPopupConfigRegistrar.Register()` 不再调用 ✓（文件保留但不再注册，避免误用 ✗）
-
-            // ★ 职业系统启动自检（2026-10-06）：把"能不能出 / 上限 / 概率 / 翻译是否解析成功 /
-            //   Id 是否重复"一次性打进日志 —— 审查里那 50+ 条问题绝大多数是**静默失效**，
-            //   不主动打状态就只能靠猜。放在配置注册之后，因为自检要读配置值。
+            GameModeConfigRegistrar.Register();
+            AssignmentConfigRegistrar.Register();   // 分配设置（船员/内鬼/中立上限，审查 B7）
+            HudLayoutConfigRegistrar.Register();
             Roles.Assignment.RoleHealthCheck.Run();
 
             try { LightInDark.Configuration.PresetStore.Initialize(); }
@@ -128,21 +111,17 @@ public partial class LightPlugin : BasePlugin
             AddCursorComponent(); // 鼠标。
             RegisterShowModStampOnMainMenu(); // MOD STAMPPPPPPPPPPPPPPPPPPPPPPPPPPPPPP
 
-            // 跨场景常驻的每帧驱动器
             try { LightTicker.Ensure(); } catch { }
 
-            // 依赖库释放
             try { Audio.NativeLibraryLoader.PrepareBass(); } catch { }
 
             try { Audio.BassMusicPlayer.Ensure(); } catch { }
-            ChatHistoryLogUtils.Init(); // 聊天历史记录。
+            ChatHistoryLogUtils.Init();
 
-            // 握手验证：注册挑战/握手 RPC 处理器并缓存本地 hash；
-            // 是否真正生效由 HandshakeManager.IsEnabled（设置开关 + 服务器地址）决定
             Handshake.HandshakeManager.Initialize();
 
-            NewsManager.LoadNews(); // 加载新闻。
-            InitializeMusicPlayer(); // 音乐播放器（F3 自绘窗口）；失败只记日志，绝不让 Load 抛
+            NewsManager.LoadNews();
+            InitializeMusicPlayer();
             Log.LogInfo($"模组 {Name} v{Version} 已加载！");
         }
         catch (Exception ex)
@@ -156,7 +135,7 @@ public partial class LightPlugin : BasePlugin
     }
 
     /// <summary>
-    /// 音乐播放器（F3 窗口）
+    /// 音乐播放器
     /// </summary>
     private static void InitializeMusicPlayer()
     {
@@ -209,11 +188,6 @@ public partial class LightPlugin : BasePlugin
         }
     }
 
-    /// <summary>
-    /// 解压语言文件到游戏目录 Language 文件夹。
-    /// 文件不存在 → 直接写出；已存在 → 只补充缺失的词条（不覆盖用户已有的翻译）。
-    /// 这样新增职业的本地化词条会随版本更新自动合并进旧语言文件。
-    /// </summary>
     private static void ExtractLanguageFiles()
     {
         try
@@ -231,6 +205,7 @@ public partial class LightPlugin : BasePlugin
                 {
                     if (stream == null) continue;
                     using var reader = new StreamReader(stream);
+
                     embedded = JsonSerializer.Deserialize<Dictionary<string, string>>(reader.ReadToEnd());
                 }
                 if (embedded == null || embedded.Count == 0) continue;

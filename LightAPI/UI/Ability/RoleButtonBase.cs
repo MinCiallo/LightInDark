@@ -883,25 +883,146 @@ namespace LightInDark.UI.Ability
             ApplyLabelType();
             var button = Button;
             if (button == null) return;
+
+            // ⚠️⚠️ 2026-10-10 用户报「AbilityButton 的字体和冷却字体均不对，用原版的」——
+            //   根因就在这段：我们原来**强制**改了原版按钮的两个文字 ✗
+            //     · `label.enableAutoSizing = false`  → 关掉了原版的自适应 → 字号/字重变了 ✗
+            //     · `label.fontStyle |= FontStyles.Bold` → 原版标签**不是粗体** ✗
+            //     · `cooldown.fontStyle |= FontStyles.Bold` → 冷却数字变粗 ✗（这就是"冷却字体不对"）
+            //   → 现在：**两处都不碰** ✓ —— 克隆体自带原版的字体 / 材质 / 字重 / 描边，
+            //     一个都不改，自然就和原版一模一样 ✓✓
+            //   （只有显式开了 `PlainLabel` 的职业才按配置改成平体 ✓ 见下）
             var label = button.buttonLabelText;
-            if (label != null)
+            if (label != null && _config.PlainLabel)
             {
-                label.enableAutoSizing = false;
-                if (_config.PlainLabel)
+                if (_config.PlainFont != null)
                 {
-                    if (_config.PlainFont != null)
-                    {
-                        label.font = _config.PlainFont;
-                        if (_config.PlainFontMaterial != null) label.fontSharedMaterial = _config.PlainFontMaterial;
-                    }
-                    label.fontStyle = FontStyles.Normal;
-                    label.outlineWidth = 0f;
+                    label.font = _config.PlainFont;
+                    if (_config.PlainFontMaterial != null) label.fontSharedMaterial = _config.PlainFontMaterial;
                 }
-                else label.fontStyle |= FontStyles.Bold;
+                label.fontStyle = FontStyles.Normal;
+                label.outlineWidth = 0f;
             }
-            var cooldown = button.cooldownTimerText;
-            if (cooldown != null) { cooldown.enableAutoSizing = false; cooldown.fontStyle |= FontStyles.Bold; }
+
+            // 冷却数字：**不改**（原版什么样就什么样 ✓）
         }
+        // =====================================================================
+        //  原版 `ActionButton.SetFillUp` 的等价实现（"持续型"按钮用 ✓）
+        // =====================================================================
+
+        private Vector3? _graphicBasePos;
+
+        /// <summary>图标（`graphic`）的原始本地坐标 —— 抖动之后要能回到原位 ✓</summary>
+        protected Vector3 GraphicBasePos
+        {
+            get
+            {
+                if (_graphicBasePos == null)
+                {
+                    var a = Button;
+                    var g = a != null ? a.graphic : null;
+                    _graphicBasePos = g != null ? g.transform.localPosition : Vector3.zero;
+                }
+                return _graphicBasePos.Value;
+            }
+        }
+
+        /// <summary>把图标放回原位（停止抖动时用 ✓）</summary>
+        protected void ResetGraphicPos()
+        {
+            try
+            {
+                var a = Button;
+                var g = a != null ? a.graphic : null;
+                if (g != null) g.transform.localPosition = GraphicBasePos;
+            }
+            catch { }
+        }
+
+        /// <summary>
+        /// **原版 `ActionButton.SetFillUp` 的等价实现**（19.0 `ActionButton.cs:82-97` ✓）。
+        ///
+        /// 原版"解除变形"那个按钮就是这么显示的 ✓：
+        /// <code>
+        ///   float num = Mathf.Clamp((maxTimer - timer) / maxTimer, 0f, 1f);   // 进度 = **已用时间**比例
+        ///   if (isCoolingDown &amp;&amp; timer &lt; 3f) {
+        ///       graphic.transform.localPosition = position + Random.insideUnitCircle * 0.05f;   // 抖动
+        ///       cooldownTimerText.text = CeilToInt(timer).ToString();                          // 才显示数字
+        ///       cooldownTimerText.gameObject.SetActive(true);
+        ///   } else graphic.transform.localPosition = position;                                 // 复位
+        ///   SetCooldownFill(num);
+        /// </code>
+        ///
+        /// ⚠️ 与原版的唯一区别：**抖动的阈值可配** ✓（原版写死 3f ✗）
+        ///    `jitter = false` 时完全不抖 ✓（数字还是照原版那样，最后 3 秒才出现 ✓）
+        /// </summary>
+        /// <param name="remain">剩余时间（秒）</param>
+        /// <param name="max">总时长（秒）</param>
+        /// <param name="jitter">是否启用"快没了就抖" ✓</param>
+        /// <param name="jitterThreshold">剩余多少秒开始抖（默认 3f，与原版一致 ✓）</param>
+        protected void ApplyFillUpDisplay(float remain, float max, bool jitter, float jitterThreshold)
+        {
+            try
+            {
+                var a = Button;
+                if (a == null || max <= 0f) return;
+
+                if (remain < 0f) remain = 0f;
+                if (remain > max) remain = max;
+
+                float ratio = Mathf.Clamp((max - remain) / max, 0f, 1f);   // ★ 已用时间比例（原版语义 ✓）
+                bool cooling = ratio > 0f;
+
+                // ── 抖动（原版：Random.insideUnitCircle * 0.05 ✓）──
+                var g = a.graphic;
+                if (g != null)
+                {
+                    if (jitter && cooling && remain < jitterThreshold)
+                        g.transform.localPosition = GraphicBasePos + (Vector3)(UnityEngine.Random.insideUnitCircle * 0.05f);
+                    else
+                        g.transform.localPosition = GraphicBasePos;
+                }
+
+                // ── 进度环 ──
+                a.SetCooldownFill(ratio);
+
+                // ── 数字：原版是"最后 3 秒才出现" ✓（这里沿用原版的 3f 判断 ✓）──
+                var t = a.cooldownTimerText;
+                if (t != null)
+                {
+                    bool showNumber = cooling && remain < 3f;
+                    if (showNumber)
+                    {
+                        t.text = Mathf.CeilToInt(remain).ToString();
+                        if (!t.gameObject.activeSelf) t.gameObject.SetActive(true);
+                    }
+                    else if (t.gameObject.activeSelf)
+                    {
+                        t.gameObject.SetActive(false);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                LightLogger.LogWarning($"[RoleButtonBase.ApplyFillUpDisplay] {ex.Message}");
+            }
+        }
+
+        /// <summary>按原版 `SetCoolDown` 显示普通冷却（进度 = **剩余**比例、数字一直在 ✓）</summary>
+        protected void ApplyCooldownDisplay(float remain, float max)
+        {
+            try
+            {
+                var a = Button;
+                if (a == null || max <= 0f) return;
+                a.SetCoolDown(remain, max);   // 原版实现 ✓（含数字与进度环 ✓）
+            }
+            catch (Exception ex)
+            {
+                LightLogger.LogWarning($"[RoleButtonBase.ApplyCooldownDisplay] {ex.Message}");
+            }
+        }
+
         internal virtual void NotifyMeetingStarted()
         {
             _config.MeetingStarted?.Invoke();

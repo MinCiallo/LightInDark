@@ -5,9 +5,9 @@ using LightInDark.Configuration;
 using LightInDark.Events;
 using LightInDark.Roles;
 using LightInDark.RPCs;
-using Light.Roles.Crewmates;
 using Light.Roles.Impostors;
 using LightInDark.Core;
+using Light.Roles.Crewmates;
 
 namespace Light.Roles.Assignment;
 

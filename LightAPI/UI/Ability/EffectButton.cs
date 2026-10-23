@@ -54,6 +54,29 @@ namespace LightInDark.UI.Ability
         /// <summary>是否在效果中显示倒计时（默认 true）。</summary>
         public bool ShowEffectCountdown { get; set; } = true;
 
+        // ── “时间快没了就抖动” ──（原版 `ActionButton.SetFillUp` 的行为 ✓）
+        private bool _jitterEnabled = true;      // 默认开（和原版解除变形一致 ✓）
+        private float _jitterThreshold = 3f;     // 剩余 3 秒开始抖（原版写死 3f ✓）
+
+        /// <summary>
+        /// **选择性地**启用"时间快没了就抖动"（用户 2026-10-10 要求 ✓）。
+        ///
+        /// 用法（就是你举的例子 ✓）：
+        /// <code>
+        ///   SetEndingJitter(true, 3f);    // 会抖，剩余 3 秒时开始（和原版"解除变形"一样 ✓）
+        ///   SetEndingJitter(true, 5f);    // 会抖，提前到剩余 5 秒开始
+        ///   SetEndingJitter(false);       // 完全不抖（数字仍然照原版那样，最后 3 秒才出现 ✓）
+        /// </code>
+        ///
+        /// ⚠️ 抖动只动**图标**（`graphic.transform`），不动按钮本体 ✓
+        ///    —— 与按钮本体上的排序/点击区域无关，所以不会影响点击 ✓
+        /// </summary>
+        public void SetEndingJitter(bool enabled, float threshold = 3f)
+        {
+            _jitterEnabled = enabled;
+            _jitterThreshold = Mathf.Max(0f, threshold);
+        }
+
         protected EffectButton(RuntimeRoleTemplate role, Player player, RoleButtonConfig config, Action onClick)
             : base(role, player, config, onClick) { EffectTimer.Completed += StopEffect; }
 
@@ -172,6 +195,7 @@ namespace LightInDark.UI.Ability
                 _inEffect = false;
                 EffectTimer.Stop();
                 _onEffectEnd?.Invoke();
+                ResetGraphicPos();          // ★ 停止抖动、图标回原位 ✓
                 if (ShowEffectCountdown && EffectLabel != null)
                 {
                     _actionButton.buttonLabelText.color = NormalColor;
@@ -194,8 +218,10 @@ namespace LightInDark.UI.Ability
                 {
                     EffectTimer.Tick(Time.deltaTime);
 
-                    if (EffectDuration > 0f && ShowEffectCountdown && EffectLabel != null)
-                        _actionButton.buttonLabelText.text = Mathf.CeilToInt(_effectTimer).ToString();
+                    // ⚠️ 2026-10-10 用户报「字体不对」—— 这里原来把**倒计时数字写进了按钮标签**
+                    //    `buttonLabelText`（那是"技能名"的位置 ✗ 用的是标签字体/字号）✗
+                    //    原版是把数字写在 `cooldownTimerText` 里、而且最后 3 秒才出现 ✓
+                    //    → 现在交给 `UpdateCooldownDisplay()` 里的 `ApplyFillUpDisplay` ✓（见下）
 
                     if (_effectTimer <= 0f)
                     {
@@ -276,15 +302,13 @@ namespace LightInDark.UI.Ability
                     return;
                 }
 
-                var action = Button;
-                if (action == null) return;
-
-                float remain = _effectTimer;
-                if (remain < 0f) remain = 0f;
-                if (remain > EffectDuration) remain = EffectDuration;
-
-                // 与 `ActionButton.SetCoolDown` 同一个公式：fill = 剩余 / 总时长（ActionButton.cs:54）
-                action.SetCooldownFill(remain / EffectDuration);
+                // ★★ 2026-10-10：改用**原版 `ActionButton.SetFillUp` 的语义** ✓
+                //    （就是原版"解除变形"那个按钮的显示方式 ✓）
+                //      · 进度环 = **已用时间**比例（越接近结束越满 ✓）
+                //      · 数字写在 `cooldownTimerText`、**最后 3 秒才出现** ✓
+                //      · 剩余 < 阈值时**图标抖动**（可关 ✓，见 SetEndingJitter ✓）
+                //    ⚠️ 原来是"进度 = 剩余比例"的相反方向 ✗、还把数字塞进标签 ✗
+                ApplyFillUpDisplay(_effectTimer, EffectDuration, _jitterEnabled, _jitterThreshold);
             }
             catch (Exception ex)
             {
