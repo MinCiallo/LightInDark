@@ -403,8 +403,4 @@ VerificationServer/obj/
 VerificationServer/publish/
 VerificationServer/publish-linux/
 VerificationServer/*.zip
-<<<<<<< HEAD
-VerificationServer/**/data/"*.rar" 
-=======
 VerificationServer/**/data/
->>>>>>> f255053fa5edc18984c6026e3f95f7c31f00853c

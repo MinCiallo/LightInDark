@@ -2,6 +2,23 @@
 var CHANGELOG = [
     {
         date: '2026-10-18',
+        title: '新增「效果按钮」节点',
+        items: [
+            '新增节点：效果按钮（持续效果；效果时长与冷却独立；可再点取消；显示倒计时；末段抖动可配阈值）',
+            '同步主插件 API：AbilityButtonFactory.CreateEffect 新增 effectDuration / allowCancelByReclick 参数',
+            '同步主插件 API：EffectButton 新增 ShowEffectCountdown / SetEndingJitter / OnEffectStart / OnEffectEnd'
+        ]
+    },
+    {
+        date: '2026-10-18',
+        title: '同步主插件最新 API',
+        items: [
+            '适配：主插件已删除 NormalizeVanillaRole()（开局分配被完全接管），生成的职业不再调用它',
+            '文档同步：职业类别上限默认值改为 0 = 不限制（原 2/2/1）'
+        ]
+    },
+    {
+        date: '2026-10-18',
         title: '清理互相矛盾的设置项',
         items: [
             '阵营不是「中立」时，「中立细分」与「队伍标识」自动置灰不可编辑',

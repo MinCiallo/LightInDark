@@ -389,6 +389,7 @@ namespace LightInDark.UI.Ability
             try
             {
                 RoleButtonManager.OnMeetingStart(__instance);
+                LightInDark.Modifiers.Buffs.BuffManager.OnMeetingStart();
             }
             catch (System.Exception ex)
             {

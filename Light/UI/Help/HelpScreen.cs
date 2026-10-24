@@ -339,7 +339,7 @@ public static class HelpScreen
     /// <summary>页签显示顺序</summary>
     private static readonly HelpTab[] TabOrder =
     {
-        HelpTab.Search, HelpTab.MyInfo, HelpTab.Roles, HelpTab.Overview, HelpTab.Options,
+        HelpTab.Search, HelpTab.MyInfo, HelpTab.Roles,
         HelpTab.Achievements, HelpTab.Stamps,
     };
 
@@ -436,8 +436,6 @@ public static class HelpScreen
                 case HelpTab.Search: BuildSearchPage(win); break;
                 case HelpTab.MyInfo: BuildMyInfoPage(win); break;
                 case HelpTab.Roles: BuildRolesPage(win); break;
-                case HelpTab.Overview: BuildOverviewPage(win); break;
-                case HelpTab.Options: BuildOptionsPage(win); break;
                 case HelpTab.Achievements:
                     BuildPlaceholderPage(win, "help.tabs.achievements", "成就");
                     break;
@@ -1014,11 +1012,11 @@ public static class HelpScreen
 
             var prev = CreateRawButton(win, Language.Translate("help.page.prev", "上一页"), size,
                 () => { if (page > 0) onChange(page - 1); }, PagerFontSize);
-            prev.SetPosition(new Vector3(-0.84f, PagerY, -1f));
+            prev.SetPosition(new Vector3(-1.15f, PagerY, -1f));
 
             var next = CreateRawButton(win, Language.Translate("help.page.next", "下一页"), size,
                 () => { if (page < pages - 1) onChange(page + 1); }, PagerFontSize);
-            next.SetPosition(new Vector3(0.84f, PagerY, -1f));
+            next.SetPosition(new Vector3(1.15f, PagerY, -1f));
 
             AddFixedText(win, $"{page + 1} / {pages}", PagerFontSize, PagerY);
         }

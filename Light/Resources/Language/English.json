@@ -133,7 +133,6 @@
   "Guesser.miss": "Wrong guess.",
   "Guesser.safe": "Safe guess saved you.",
   "gameEnd.JackalWin": "Jackal Team Wins",
-
   "meeting.deathinfo.format": "<color=#%COLOR%>%NAME%</color>: %CAUSE% (%ROUND%)",
   "meeting.deathinfo.round": "Round %ROUND%",
   "meeting.deathinfo.aliveInfo": "Placeholder",
@@ -146,5 +145,9 @@
   "death.suicide": "Suicide",
   "death.guessed": "Guessed by %KILLER%",
   "death.misfired": "Misfire (%KILLER%)",
-  "death.disconnected": "Disconnected"
+  "death.disconnected": "Disconnected",
+  "buff.speed_boost.name": "Speed Boost",
+  "buff.speed_boost.describe": "Move 30% faster for 10 seconds; ends when a meeting starts.",
+  "buff.shadow.name": "Anonymous",
+  "buff.shadow.describe": "All players lose cosmetics, turn gray and hide their names for 15 seconds."
 }

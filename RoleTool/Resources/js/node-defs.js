@@ -66,6 +66,34 @@ function registerAllNodes() {
         this.size = [240, 172];
     }, C.btn.fg, C.btn.bg);
 
+    defNode("btn/effect", "效果按钮", function () {
+        this.addInput("执行", "exec");
+        this.addProperty("Button.<Role>.label", "");
+        this.addWidget("text", "Button.<Role>.label", "", (v) => { this.properties["Button.<Role>.label"] = v; setTimeout(regenerate, 80); });
+        this.addProperty("Hotkey", "F");
+        this.addWidget("combo", "Hotkey", "F", (v) => { this.properties["Hotkey"] = v; setTimeout(regenerate, 80); },
+            { values: ["A", "B", "C", "D", "E", "F", "Q", "R", "Space"] });
+        this.addProperty("Cooldown", 20);
+        this.addWidget("number", "Cooldown", 20, (v) => { this.properties["Cooldown"] = v; setTimeout(regenerate, 80); });
+        this.addProperty("EffectDuration", 5);
+        this.addWidget("number", "EffectDuration", 5, (v) => { this.properties["EffectDuration"] = v; setTimeout(regenerate, 80); });
+        this.addProperty("AllowCancel", true);
+        this.addWidget("toggle", "AllowCancel", true, (v) => { this.properties["AllowCancel"] = v; setTimeout(regenerate, 80); });
+        this.addProperty("ShowCountdown", true);
+        this.addWidget("toggle", "ShowCountdown", true, (v) => { this.properties["ShowCountdown"] = v; setTimeout(regenerate, 80); });
+        this.addProperty("EndingJitter", true);
+        this.addWidget("toggle", "EndingJitter", true, (v) => { this.properties["EndingJitter"] = v; setTimeout(regenerate, 80); });
+        this.addProperty("JitterThreshold", 3);
+        this.addWidget("number", "JitterThreshold", 3, (v) => { this.properties["JitterThreshold"] = v; setTimeout(regenerate, 80); });
+        this._propKeys = ["Button.<Role>.label", "Hotkey", "Cooldown", "EffectDuration",
+            "AllowCancel", "ShowCountdown", "EndingJitter", "JitterThreshold"];
+        this.addOutput("点击", "exec");
+        this.addOutput("开始", "exec");
+        this.addOutput("结束", "exec");
+        this.addOutput("下一", "exec");
+        this.size = [250, 250];
+    }, C.btn.fg, C.btn.bg);
+
     // ---------- 动作 ----------
     defNode("act/emergencyMeeting", "召开紧急会议", function () {
         this.addInput("执行", "exec");

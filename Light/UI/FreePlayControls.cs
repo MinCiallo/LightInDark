@@ -91,6 +91,20 @@ internal static class FreePlayControls
 
         _buttons.Add(LightInDark.UI.Ability.AbilityButton.CreateForPlayer(local, new RoleButtonConfig
         {
+            Label = "BUFF 测试",
+            Hotkey = KeyCode.B,
+            StartOnCooldown = false,
+            AlwaysShow = true,
+            IsLeftSide = true,
+            PlainLabel = true,
+            PlainFont = plainFont,
+            PlainFontMaterial = plainMaterial,
+            Icon = operate,
+            CanShow = InGame,
+        }, () => DebugTools.BuffDebugPanel.OpenWindow()));
+
+        _buttons.Add(LightInDark.UI.Ability.AbilityButton.CreateForPlayer(local, new RoleButtonConfig
+        {
             Label = "复活",
             Hotkey = KeyCode.Y,
             StartOnCooldown = false,

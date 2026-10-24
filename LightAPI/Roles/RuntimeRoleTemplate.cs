@@ -4,6 +4,8 @@ using LightInDark.Configuration;
 using LightInDark.Core;
 using LightInDark.Events;
 using LightInDark.Game;
+using LightInDark.Modifiers.Buffs;
+using LightInDark.Visual;
 using LightInDark.Roles;
 using LightInDark.UI.Ability;
 
@@ -210,11 +212,80 @@ namespace LightInDark.Roles
         /// </summary>
         protected internal virtual void OnRoleData(int dataId, int value) { }
 
+        // =====================================================================
+        //  Buff / 外观口子
+        // =====================================================================
+
+        private readonly List<RuntimeBuff> _buffs = new();
+        private bool _anonymous;
+
+        /// <summary>给本职业玩家加一个限时 Buff（房主调用会广播到其他客户端）。</summary>
+        protected RuntimeBuff GiveBuff(BuffDefinition buff, float? duration = null)
+        {
+            try
+            {
+                var player = MyPlayer;
+                if (player == null) return null;
+
+                var runtime = BuffManager.AddAndBroadcast(player, buff, duration);
+                if (runtime != null && !_buffs.Contains(runtime)) _buffs.Add(runtime);
+                return runtime;
+            }
+            catch (Exception ex)
+            {
+                LightLogger.LogError($"[{CodeName}] GiveBuff 失败", ex);
+                return null;
+            }
+        }
+
+        /// <summary>移除本职业玩家身上指定 Key 的 Buff。</summary>
+        protected bool RemoveBuff(string key)
+        {
+            try
+            {
+                var player = MyPlayer;
+                return player != null && BuffManager.Remove(player, key);
+            }
+            catch { return false; }
+        }
+
+        /// <summary>清掉本职业发出的全部 Buff（换职 / 释放时自动调用）。</summary>
+        protected void ClearMyBuffs()
+        {
+            foreach (var buff in _buffs)
+            {
+                try
+                {
+                    var player = MyPlayer;
+                    if (player == null || !BuffManager.Remove(player, buff.Definition.Key))
+                        buff.Expire();
+                }
+                catch { }
+            }
+            _buffs.Clear();
+        }
+
+        /// <summary>小黑人：清空装扮 + 灰色 + 隐藏名字；释放职业时自动恢复。</summary>
+        protected void SetAnonymous(bool enabled)
+        {
+            _anonymous = enabled;
+            var player = MyPlayer;
+            if (player != null) PlayerAppearance.SetAnonymous(player, enabled);
+        }
+
         /// <summary>释放：注销事件、回收本职业按钮、恢复名字颜色、销毁 Info 文本。</summary>
         public void Release()
         {
             try
             {
+                try { ClearMyBuffs(); }
+                catch { }
+                if (_anonymous)
+                {
+                    try { SetAnonymous(false); }
+                    catch { }
+                }
+
                 EventSystem.UnregisterInstance(this);
                 try { RoleButtonManager.ReleaseButtonsOf(this); }
                 catch { }

@@ -49,7 +49,7 @@ function updateRoleCard(meta) {
     var count = 0;
     if (typeof litegraphGraph !== 'undefined' && litegraphGraph) {
         var arr = litegraphGraph._nodes || litegraphGraph.nodes || [];
-        count = arr.filter(function (n) { return n && n.type === 'btn/ability'; }).length;
+        count = arr.filter(function (n) { return n && (n.type === 'btn/ability' || n.type === 'btn/effect'); }).length;
     }
 
     card.innerHTML = '';

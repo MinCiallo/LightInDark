@@ -97,7 +97,6 @@ public partial class LightPlugin : BasePlugin
             RoleConfigRegistrar.Register();   // 职业配置块 + 职业专属项
             GameModeConfigRegistrar.Register();
             AssignmentConfigRegistrar.Register();   // 分配设置（船员/内鬼/中立上限，审查 B7）
-            HudLayoutConfigRegistrar.Register();
             Roles.Assignment.RoleHealthCheck.Run();
 
             try { LightInDark.Configuration.PresetStore.Initialize(); }

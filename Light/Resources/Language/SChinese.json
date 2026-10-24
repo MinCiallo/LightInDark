@@ -126,7 +126,6 @@
   "Guesser.miss": "猜错了。",
   "Guesser.safe": "安全猜测生效，本次不会死亡。",
   "gameEnd.JackalWin": "豺狼胜利",
-
   "meeting.deathinfo.format": "<color=#%COLOR%>%NAME%</color>: %CAUSE%(%ROUND%)",
   "meeting.deathinfo.round": "第%ROUND%轮",
   "meeting.deathinfo.aliveInfo": "占位（临时文本）",
@@ -145,7 +144,9 @@
   "notifier.disconnectmsg.exit": "<color=red>主动离开</color>了游戏。",
   "notifier.disconnectmsg.ban": "<color=#D32F2F>被封禁于该房间。</color>",
   "notifier.disconnectmsg.kick": "<color=#FF9800>被踢出了该房间。</color>",
-  "notifier.disconnectmsg.disconnect": "<color=#FFC107>与服务器断开了连接。</color>"
-
-
+  "notifier.disconnectmsg.disconnect": "<color=#FFC107>与服务器断开了连接。</color>",
+  "buff.speed_boost.name": "加速",
+  "buff.speed_boost.describe": "移动速度提升 30%，持续 10 秒；会议开始即结束。",
+  "buff.shadow.name": "小黑人",
+  "buff.shadow.describe": "全场玩家清空装扮、身体变灰并隐藏名字，持续 15 秒。"
 }
