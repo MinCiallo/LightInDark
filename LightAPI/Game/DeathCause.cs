@@ -54,7 +54,7 @@ public static class DeathCause
 
     /// <summary>注册（或覆盖）一个死因的显示方式。模组加载时调用一次即可 ✓</summary>
     /// <param name="causeId">稳定 id，建议 <c>lid.death.xxx</c> 形式（**不要用序号** ✗）</param>
-    /// <param name="text">返回显示文本；可用 <c>{0}</c> 占位凶手名 ✓</param>
+    /// <param name="text">返回显示文本；可用 <c>%KILLER%</c> 占位凶手名 ✓</param>
     public static void Register(string causeId, Func<string> text)
     {
         try
@@ -88,7 +88,7 @@ public static class DeathCause
     /// <summary>
     /// 取显示文本。
     /// ⚠️ **未注册返回 null**（让调用方退回老的枚举文案 ✓）—— 而不是硬编一个"未知" ✗
-    /// <paramref name="killerName"/> 会替换文本里的 <c>{0}</c> ✓
+    /// <paramref name="killerName"/> 会替换文本里的 <c>%KILLER%</c> ✓
     /// </summary>
     public static string Resolve(string causeId, string killerName = null)
     {
@@ -100,11 +100,11 @@ public static class DeathCause
             string text = e.Text();
             if (string.IsNullOrEmpty(text)) return null;
 
-            if (!string.IsNullOrEmpty(killerName) && text.Contains("{0}"))
-                text = text.Replace("{0}", killerName);
+            if (!string.IsNullOrEmpty(killerName) && text.Contains("%KILLER%"))
+                text = text.Replace("%KILLER%", killerName);
 
-            // 凶手名拿不到时别留下光秃秃的 `{0}` ✗（原版直接触发的死亡就没有凶手 ✓）
-            if (text.Contains("{0}")) text = text.Replace("{0}", "").Replace("  ", " ").Trim();
+            // 凶手名拿不到时别留下光秃秃的 `%KILLER%` ✗（原版直接触发的死亡就没有凶手 ✓）
+            if (text.Contains("%KILLER%")) text = text.Replace("%KILLER%", "").Replace("  ", " ").Trim();
 
             return text;
         }
@@ -135,11 +135,11 @@ public static class DeathCause
     {
         Register(Alive, "death.alive", "存活");
         Register(Dead, "death.dead", "死亡");
-        Register(BeKilled, "death.bekilled", "被 {0} 击杀");
+        Register(BeKilled, "death.bekilled", "被 %KILLER% 击杀");
         Register(Exiled, "death.exiled", "被放逐");
         Register(Suicide, "death.suicide", "自杀");
-        Register(Guessed, "death.guessed", "被 {0} 猜中");
-        Register(Misfired, "death.misfired", "走火（{0}）");
+        Register(Guessed, "death.guessed", "被 %KILLER% 猜中");
+        Register(Misfired, "death.misfired", "走火（%KILLER%）");
         Register(Disconnected, "death.disconnected", "断线");
     }
 }

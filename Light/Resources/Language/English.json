@@ -132,5 +132,19 @@
   "Guesser.hit": "Correct guess.",
   "Guesser.miss": "Wrong guess.",
   "Guesser.safe": "Safe guess saved you.",
-  "gameEnd.JackalWin": "Jackal Team Wins"
+  "gameEnd.JackalWin": "Jackal Team Wins",
+
+  "meeting.deathinfo.format": "<color=#%COLOR%>%NAME%</color>: %CAUSE% (%ROUND%)",
+  "meeting.deathinfo.round": "Round %ROUND%",
+  "meeting.deathinfo.aliveInfo": "Placeholder",
+  "meeting.deathinfo.unknown": "Unknown",
+
+  "death.alive": "Alive",
+  "death.dead": "Dead",
+  "death.bekilled": "Killed by %KILLER%",
+  "death.exiled": "Exiled",
+  "death.suicide": "Suicide",
+  "death.guessed": "Guessed by %KILLER%",
+  "death.misfired": "Misfire (%KILLER%)",
+  "death.disconnected": "Disconnected"
 }

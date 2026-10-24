@@ -189,7 +189,7 @@ namespace LightInDark.Roles
         /// </code>
         ///
         /// ⚠️ id 必须是**稳定字符串**（不要用序号 ✗ —— "击杀记成放逐"就是硬编码序号造成的 ✗）
-        /// ⚠️ 文本里可用 `{0}` 占位凶手名 ✓（拿不到凶手时会被清掉，不会留下光秃秃的 `{0}` ✓）
+        /// ⚠️ 文本里可用 `%KILLER%` 占位凶手名 ✓（拿不到凶手时会被清掉，不会留下光秃秃的 `%KILLER%` ✓）
         /// </summary>
         public virtual string KillDeathCauseId => null;
 

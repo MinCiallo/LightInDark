@@ -125,5 +125,27 @@
   "Guesser.hit": "猜中了。",
   "Guesser.miss": "猜错了。",
   "Guesser.safe": "安全猜测生效，本次不会死亡。",
-  "gameEnd.JackalWin": "豺狼胜利"
+  "gameEnd.JackalWin": "豺狼胜利",
+
+  "meeting.deathinfo.format": "<color=#%COLOR%>%NAME%</color>: %CAUSE%(%ROUND%)",
+  "meeting.deathinfo.round": "第%ROUND%轮",
+  "meeting.deathinfo.aliveInfo": "占位（临时文本）",
+  "meeting.deathinfo.unknown": "未知",
+
+  "death.alive": "存活",
+  "death.dead": "死亡",
+  "death.bekilled": "被 %KILLER% 击杀",
+  "death.exiled": "被放逐",
+  "death.suicide": "自杀",
+  "death.guessed": "被 %KILLER% 猜中",
+  "death.misfired": "走火（%KILLER%）",
+  "death.disconnected": "断线",
+
+  "notifier.disconnectmsg": "<color=#%COLOR%>%N%</color> %CONTENT% （具体原因：%R%）",
+  "notifier.disconnectmsg.exit": "<color=red>主动离开</color>了游戏。",
+  "notifier.disconnectmsg.ban": "<color=#D32F2F>被封禁于该房间。</color>",
+  "notifier.disconnectmsg.kick": "<color=#FF9800>被踢出了该房间。</color>",
+  "notifier.disconnectmsg.disconnect": "<color=#FFC107>与服务器断开了连接。</color>"
+
+
 }

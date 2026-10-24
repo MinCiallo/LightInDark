@@ -35,7 +35,7 @@ public static class DetailPopup
     private const string PinHint = "";
 
     /// <summary>锚点那一行没有文字时才用这个字号（× <see cref="DetailPopupStyle.FontScale"/>）</summary>
-    private const float FallbackFontSize = 1.6f;
+    private const float FallbackFontSize = 1.5f;   // ★ 照抄 NOS `AttributeAsset.OverlayContent` 的 FontSize=1.5（GUIWidget.cs:355）✓
 
     // ── 尺寸 / 配色（用户 2026-10-06：颜色、大小、布局都要能自定义）───────────────
     //    原来这些是 `const` ✗ 改不了；现在收进 `DetailPopupStyle` ✓
@@ -85,7 +85,7 @@ public static class DetailPopup
             MaxWidth = 0f,
             FontScale = 1.0f,
             ZOffset = -1.0f,
-            BoldOutlineWidth = 0.06f,
+            BoldOutlineWidth = 0f,   // ★ 2026-10-24 用户："不要bold" ✓ → 默认 0（不加粗）
             Align = TextAlignmentOptions.Center,
         };
 
@@ -104,7 +104,7 @@ public static class DetailPopup
             MaxWidth = 0f,
             FontScale = 1.0f,
             ZOffset = -1.0f,
-            BoldOutlineWidth = 0.06f,
+            BoldOutlineWidth = 0f,   // ★ 2026-10-24 用户："不要bold" ✓ → 默认 0（不加粗）
             Align = TextAlignmentOptions.Left,
         };
 
@@ -122,7 +122,7 @@ public static class DetailPopup
             MaxWidth = 0f,
             FontScale = 1.0f,
             ZOffset = -1.0f,
-            BoldOutlineWidth = 0.06f,
+            BoldOutlineWidth = 0f,   // ★ 2026-10-24 用户："不要bold" ✓ → 默认 0（不加粗）
             Align = TextAlignmentOptions.Center,
         };
     }
@@ -414,7 +414,12 @@ public static class DetailPopup
     private static string _currentText = "";
 
     /// <summary>显示提示框。</summary>
-    public static void Show(string? text, bool canPinByTab = true, Transform? anchor = null)
+    /// <param name="fontSize">
+    /// 显式字号（null = 按锚点行字号自动推 ✓）。
+    /// ⚠️ 2026-10-24 加这个参数是为了**会议里的名牌悬停框**：
+    ///    那种锚点是个空按钮、没有 TMP，只能走兜底字号 1.6 ✗（用户截图："太大" ✓）
+    /// </param>
+    public static void Show(string? text, bool canPinByTab = true, Transform? anchor = null, float? fontSize = null)
     {
         try
         {
@@ -427,8 +432,11 @@ public static class DetailPopup
                 return;
             }
 
-            Ensure(parent, anchor);
+            Ensure(parent, anchor, fontSize);
             if (_root == null || _text == null) return;
+
+            // 已经存在（同一个 parent）时也要能改字号 ✓
+            if (fontSize.HasValue) ApplyTextStyle(_text, fontSize.Value);
             _anchor = anchor;
             _canPin = canPinByTab;
 
@@ -543,7 +551,7 @@ public static class DetailPopup
         if (_root != null) _root.SetActive(false);
     }
 
-    private static void Ensure(Transform parent, Transform? anchor)
+    private static void Ensure(Transform parent, Transform? anchor, float? fontSize = null)
     {
         if (_root != null && _sourceParent == parent) return;
 
@@ -580,7 +588,7 @@ public static class DetailPopup
         _left = MakePart("BorderLeft", Vector3.zero, Style.Border, white);
         _right = MakePart("BorderRight", Vector3.zero, Style.Border, white);
 
-        _text = CreateText(_root.transform, anchor);
+        _text = CreateText(_root.transform, anchor, fontSize);
 
         _root.SetActive(false);
         LightLogger.Log($"[DetailPopup] 提示框已创建（灰底+淡金边框；文字来源={(_textSourceIsRowText ? "行内文字" : "统一文本模板")}）");
@@ -603,7 +611,21 @@ public static class DetailPopup
 
     private static bool _textSourceIsRowText;
 
-    private static TextMeshPro? CreateText(Transform parent, Transform? anchor)
+    /// <summary>
+    /// 建提示框文字。
+    ///
+    /// ⚠️ 2026-10-24 用户实测反馈（截图）：**太粗 + 字号太大** ✗
+    ///   原话："太粗。而且这个文本是什么。不要bold，而且auto size 啊。
+    ///          要类似于第二张图的，detail框默认不要bold，很诡异的。"
+    ///   → 三处改动：
+    ///     ① `fontStyle = Normal`（**不用** FontStyles.Bold）✓
+    ///     ② `BoldOutlineWidth` 默认 0 → `ApplyBold` 不再加材质描边 ✓
+    ///     ③ `enableAutoSizing = true` + 锁 `fontSizeMin/Max`（用户要 auto size ✓）
+    ///   ⚠️ auto size 在这里是**安全**的：`ApplyWrapWidth` 把 rect 高度设为 200 ✓
+    ///      所以 TMP 会取 `fontSizeMax`（不会被压扁 ✗），只有在宽度受限需要换行时才排多行 ✓
+    /// </summary>
+    /// <param name="fontSize">显式字号（null = 按锚点行字号 × FontScale 或兜底 1.6 ✓）</param>
+    private static TextMeshPro? CreateText(Transform parent, Transform? anchor, float? fontSize = null)
     {
         _textSourceIsRowText = false;
 
@@ -618,18 +640,12 @@ public static class DetailPopup
                 clone.transform.localPosition = Vector3.zero;
                 clone.text = "";
 
-                clone.enableAutoSizing = false;                    // 必须关：否则改 fontSize 不生效
-                clone.fontSize = source.fontSize * Style.FontScale;      // 比那一行文字再大一点
-                clone.alignment = Style.Align;
-                clone.enableWordWrapping = true;                                // ★ 允许换行（超屏自动换行 ✓，见 ApplyWrapWidth）
-                clone.overflowMode = TextOverflowModes.Overflow;   // 别被原版省略号截断
-                clone.raycastTarget = false;
-                clone.color = Style.Text;
+                float target = fontSize ?? (source.fontSize * Style.FontScale);
+                ApplyTextStyle(clone, target);
 
                 var tr = clone.GetComponent<TextTranslatorTMP>();
                 if (tr != null) tr.enabled = false;                // 别让翻译器改写我们的文本
 
-                ApplyBold(clone);
                 _textSourceIsRowText = true;
                 return clone;
             }
@@ -640,9 +656,45 @@ public static class DetailPopup
         }
 
         // ② 退回统一文本模板（主界面字体 + 辉光白）
-        var fallback = MenuTextTemplate.Create(parent, Vector3.zero, "", FallbackFontSize * Style.FontScale, Style.Text);
-        ApplyBold(fallback);
+        var fallback = MenuTextTemplate.Create(parent, Vector3.zero, "",
+            fontSize ?? (FallbackFontSize * Style.FontScale), Style.Text);
+        if (fallback != null)
+        {
+            // MenuTextTemplate.Create 设了 fontSize，这里再统一套一遍样式（含 auto size / 不加粗 ✓）
+            ApplyTextStyle(fallback, fontSize ?? (FallbackFontSize * Style.FontScale));
+        }
         return fallback;
+    }
+
+    /// <summary>
+    /// 统一的文字样式（2026-10-24 用户要求：**不加粗** + **auto size** ✓）。
+    /// 注意顺序：先 `enableAutoSizing = false` 写字号，再打开 autoSize 并锁 min/max ✓
+    /// </summary>
+    private static void ApplyTextStyle(TextMeshPro tmp, float targetSize)
+    {
+        try
+        {
+            if (tmp == null) return;
+            if (targetSize < 0.05f) targetSize = 0.05f;
+
+            tmp.fontStyle = FontStyles.Normal;                      // ★ 不 bold ✓
+            tmp.enableAutoSizing = false;                           // 先关，才能写进 fontSize ✓
+            tmp.fontSize = targetSize;
+            tmp.fontSizeMin = Mathf.Max(0.5f, targetSize * 0.73f);   // ★ 照抄 NOS：1.1 / 1.5 ≈ 0.73（OverlayContent 的 min/max ✓）
+            tmp.fontSizeMax = targetSize;                           // ★ auto size 上限
+            tmp.enableAutoSizing = true;                            // ★ 用户要 auto size ✓
+            tmp.alignment = Style.Align;
+            tmp.enableWordWrapping = true;
+            tmp.overflowMode = TextOverflowModes.Overflow;          // 别被省略号截断 ✓
+            tmp.raycastTarget = false;
+            tmp.color = Style.Text;
+
+            ApplyBold(tmp);
+        }
+        catch (Exception ex)
+        {
+            LightLogger.LogWarning($"[DetailPopup.ApplyTextStyle] {ex.Message}");
+        }
     }
 
     /// <summary>
@@ -655,6 +707,20 @@ public static class DetailPopup
         try
         {
             if (tmp == null) return;
+
+            // ★ 2026-10-24 用户："不要bold，很诡异的" ✓
+            //   `BoldOutlineWidth <= 0` = **不加粗** → 直接跳过（顺手把描边清零，防止复用旧材质残留 ✓）
+            if (Style.BoldOutlineWidth <= 0.0001f)
+            {
+                try
+                {
+                    tmp.fontStyle = FontStyles.Normal;
+                    var m0 = tmp.fontMaterial;
+                    if (m0 != null) m0.SetFloat("_OutlineWidth", 0f);
+                }
+                catch { }
+                return;
+            }
 
             var mat = tmp.fontMaterial;
             if (mat == null) return;
@@ -739,11 +805,19 @@ public static class DetailPopup
                 return tbb.Background;
             }
 
-            foreach (var sr in anchor.GetComponentsInChildren<SpriteRenderer>(true))
+            // ★ 2026-10-24：锚点本身是 TMP（如会议名牌 `NameText`）时，它的子物体里没有 SpriteRenderer ✗
+            //   → 往上找父级（投票卡片的 Background/PlayerIcon 等），拿到真正的 layer/sorting ✓
+            //   不这样做的话 `hasReference=false` → layer 0 → 被 UI Camera 剔除 → 框看不见 ✗
+            Transform? node = anchor;
+            for (int depth = 0; node != null && depth < 4; depth++)
             {
-                if (sr == null) continue;
-                if (!sr.gameObject.activeInHierarchy) continue;
-                return sr;
+                foreach (var sr in node.GetComponentsInChildren<SpriteRenderer>(true))
+                {
+                    if (sr == null) continue;
+                    if (!sr.gameObject.activeInHierarchy) continue;
+                    return sr;
+                }
+                node = node.parent;
             }
         }
         catch { }
