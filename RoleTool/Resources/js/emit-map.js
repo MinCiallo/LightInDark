@@ -71,6 +71,10 @@ const EMIT = {
         category: 'btn', kind: 'exec',
         imports: ['using LightInDark.UI.Ability;']
     },
+    'btn/effect': {
+        category: 'btn', kind: 'exec',
+        imports: ['using LightInDark.UI.Ability;']
+    },
 
     // ---------- 动作 ----------
     'act/emergencyMeeting': {

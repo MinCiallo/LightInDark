@@ -165,6 +165,13 @@ function traverseExec(startNode, indent, imports) {
             continue;
         }
 
+        // 效果按钮：CreateEffect(..., onClick, 时长, 可否再点取消) + 开始/结束回调，随后走 下一
+        if (key === 'btn/effect') {
+            out = out.concat(emitEffectButton(node, indent, imports));
+            node = findNextExec(node, 3);
+            continue;
+        }
+
         // 条件分支：两个子执行槽各自递归
         if (key === 'logic/if') {
             out.push(indentStr(indent) + 'if (' + resolveBoolean(node, '条件', 'false') + ')');
@@ -230,6 +237,57 @@ function emitKillButton(node, indent, imports) {
     lines.push(indentStr(indent) + '{');
     lines = lines.concat(traverseExec(findNextExec(node, 0), indent + 1, imports));
     lines.push(indentStr(indent) + '});');
+    return lines;
+}
+
+// 效果按钮 → CreateEffect(this, cfg, onClick, 效果时长, 可再点取消) + 倒计时/抖动/开始/结束
+function emitEffectButton(node, indent, imports) {
+    addImport(imports, 'using LightInDark.UI.Ability;');
+
+    var labelKey = nodeProp(node, 'Button.<Role>.label', '') ||
+        ('Button.' + (ctx.className || 'Role') + '.label');
+    var hotkey = nodeProp(node, 'Hotkey', 'F') || 'F';
+    var cooldown = Number(nodeProp(node, 'Cooldown', 20));
+    if (!isFinite(cooldown)) cooldown = 20;
+    var duration = Number(nodeProp(node, 'EffectDuration', 5));
+    if (!isFinite(duration) || duration < 0) duration = 5;
+    var allowCancel = !!nodeProp(node, 'AllowCancel', true);
+    var showCountdown = !!nodeProp(node, 'ShowCountdown', true);
+    var jitter = !!nodeProp(node, 'EndingJitter', true);
+    var jitterThreshold = Number(nodeProp(node, 'JitterThreshold', 3));
+    if (!isFinite(jitterThreshold)) jitterThreshold = 3;
+
+    var v = '_fx' + (node.id != null ? node.id : 0);
+    var lines = [];
+    lines.push(indentStr(indent) + 'var ' + v + ' = AbilityButtonFactory.CreateEffect(this, new RoleButtonConfig()');
+    lines.push(indentStr(indent + 1) + '.SetLabelKey(' + csString(labelKey) + ')');
+    lines.push(indentStr(indent + 1) + '.SetHotkey(KeyCode.' + hotkey + ')');
+    lines.push(indentStr(indent + 1) + '.SetCooldown(' + csNumber(cooldown) + 'f),');
+    lines.push(indentStr(indent + 1) + '() =>');
+    lines.push(indentStr(indent + 1) + '{');
+    lines = lines.concat(traverseExec(findNextExec(node, 0), indent + 2, imports));
+    lines.push(indentStr(indent + 1) + '}, ' + csNumber(duration) + 'f, ' + (allowCancel ? 'true' : 'false') + ');');
+    lines.push(indentStr(indent) + 'if (' + v + ' != null)');
+    lines.push(indentStr(indent) + '{');
+    lines.push(indentStr(indent + 1) + v + '.ShowEffectCountdown = ' + (showCountdown ? 'true' : 'false') + ';');
+    lines.push(indentStr(indent + 1) + v + '.SetEndingJitter(' + (jitter ? 'true' : 'false') + ', ' +
+        csNumber(jitterThreshold) + 'f);');
+
+    var startNode = findNextExec(node, 1);
+    if (startNode) {
+        lines.push(indentStr(indent + 1) + v + '.OnEffectStart = () =>');
+        lines.push(indentStr(indent + 1) + '{');
+        lines = lines.concat(traverseExec(startNode, indent + 2, imports));
+        lines.push(indentStr(indent + 1) + '};');
+    }
+    var endNode = findNextExec(node, 2);
+    if (endNode) {
+        lines.push(indentStr(indent + 1) + v + '.OnEffectEnd = () =>');
+        lines.push(indentStr(indent + 1) + '{');
+        lines = lines.concat(traverseExec(endNode, indent + 2, imports));
+        lines.push(indentStr(indent + 1) + '};');
+    }
+    lines.push(indentStr(indent) + '}');
     return lines;
 }
 
@@ -490,7 +548,8 @@ function buildRuntimeMembers(meta, lifeNodes, decls, imports) {
             m.push(indentStr(3) + 'try');
             m.push(indentStr(3) + '{');
             m.push(indentStr(4) + 'if (!AmOwner) return;');
-            m.push(indentStr(4) + 'NormalizeVanillaRole(' + (meta.category === 'Impostor' ? 'true' : '') + ');');
+            // 2026-10-18 起主插件已完全接管开局分配（只发 Crewmate/Impostor 底色职业），
+            // RuntimeRoleTemplate.NormalizeVanillaRole() 已删除 —— 这里不再生成该调用。
             m = m.concat(traverseExec(findNextExec(host, 0), 4, imports));
             m.push(indentStr(3) + '}');
             m.push(indentStr(3) + 'catch (Exception ex)');

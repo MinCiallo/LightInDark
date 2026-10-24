@@ -38,6 +38,8 @@ namespace Light.Patches
                 LightInDark.Game.GameModeManager.BeginRound();
                 EventTriggers.OnGameStart(PlayerControl.AllPlayerControls.Count);
                 LightInDark.Modifiers.ModifierManager.ClearAll();
+                LightInDark.Modifiers.Buffs.BuffManager.ClearAll();
+                LightInDark.Visual.PlayerAppearance.ClearAll();
                 LightLogger.Log("[Patch] 游戏开始，已保持原版结束检查开启，自定义胜负在 RpcEndGame 层处理");
             }
             catch (System.Exception)

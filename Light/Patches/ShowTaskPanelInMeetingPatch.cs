@@ -1,4 +1,4 @@
-﻿using LightInDark;
+using LightInDark;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -15,6 +15,7 @@ public static class HudManager_SetHudActive
     {
         if (!LightPlugin.LightSettingsData.ShowTaskPanelInMeeting) return;
         if (!MeetingHud.Instance) return;
+        if (__instance.TaskPanel == null) return;
 
         // Modify openPosition so the task panel appears on top of the meeting screen
         var openPosition = __instance.TaskPanel.openPosition;
@@ -29,12 +30,12 @@ public static class MyTaskPanelPatch
 {
     public static void Postfix(TaskPanelBehaviour __instance)
     {
-        var original = __instance.taskText.text;
+        if (__instance == null || __instance.taskText == null) return;
+
         var local = LightPlayer.LocalPlayer;
-        if (local != null) 
-        {
-            __instance.taskText.text = $"<color=#{ColorUtility.ToHtmlStringRGB(local.Role.Color.ToUnityColor())}>{local.Role.Name}:\n{local.Role.IntroText}</color>\n<size=90%>{original}</size>";
-        }
-        
+        if (local == null || local.Role == null) return;
+
+        string original = __instance.taskText.text;
+        __instance.taskText.text = $"<color=#{ColorUtility.ToHtmlStringRGB(local.Role.Color.ToUnityColor())}>{local.Role.Name}:\n{local.Role.IntroText}</color>\n<size=90%>{original}</size>";
     }
 }

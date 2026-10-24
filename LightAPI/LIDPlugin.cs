@@ -52,6 +52,10 @@ public partial class LIDPlugin : BasePlugin
             try { Roles.RoleRegistry.RegisterAssembly(typeof(LIDPlugin).Assembly); }
             catch (Exception ex) { LightLogger.LogError("[LIDPlugin] API 程序集职业注册失败", ex); }
 
+            // Buff 定义（示例与后续扩展）按静态单例登记，供 RPC 按 key 反查
+            try { Modifiers.Buffs.BuffRegistry.RegisterAssembly(typeof(LIDPlugin).Assembly); }
+            catch (Exception ex) { LightLogger.LogError("[LIDPlugin] Buff 注册失败", ex); }
+
             UnityEngine.SceneManagement.SceneManager.add_activeSceneChanged((Action<Scene, Scene>)((prev, next) =>
             {
                 try { EventTriggers.OnSceneChanged(prev.name, next.name); }

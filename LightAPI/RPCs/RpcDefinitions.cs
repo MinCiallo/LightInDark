@@ -183,6 +183,47 @@ namespace LightInDark.RPCs
             }
         }
 
+        // ============ Buff 同步 ============
+
+        /// <summary>房主广播：给玩家叠加一个限时 Buff。</summary>
+        [LidRPC(OnlyHost = true)]
+        public static void SyncBuff(byte playerId, string buffKey, float duration)
+        {
+            try
+            {
+                var definition = Modifiers.Buffs.BuffRegistry.Get(buffKey);
+                if (definition == null)
+                {
+                    LightLogger.LogWarning($"[RPC] 未知 Buff：{buffKey}（本地未注册）");
+                    return;
+                }
+
+                var player = Game.GameManager.Instance.GetPlayer(playerId);
+                if (player == null) return;
+
+                Modifiers.Buffs.BuffManager.Add(player, definition, duration);
+            }
+            catch (Exception ex)
+            {
+                LightLogger.LogError("RpcDefinitions.SyncBuff", ex);
+            }
+        }
+
+        /// <summary>房主广播：移除玩家身上的指定 Buff。</summary>
+        [LidRPC(OnlyHost = true)]
+        public static void RemoveBuff(byte playerId, string buffKey)
+        {
+            try
+            {
+                var player = Game.GameManager.Instance.GetPlayer(playerId);
+                if (player != null) Modifiers.Buffs.BuffManager.Remove(player, buffKey);
+            }
+            catch (Exception ex)
+            {
+                LightLogger.LogError("RpcDefinitions.RemoveBuff", ex);
+            }
+        }
+
         // ============ 玩家操作 ============
 
         [LidRPC]
@@ -649,7 +690,7 @@ namespace LightInDark.RPCs
             var hud = HudManager.Instance;
             if (hud == null) return ShowResult.NotReady;
             var chat = hud.Chat;
-            if (chat == null) return ShowResult.NotReady;
+            if (chat == null || !chat.gameObject.activeInHierarchy) return ShowResult.NotReady;
 
             string orig = pc.name;
             pc.SetName("System");

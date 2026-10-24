@@ -285,30 +285,11 @@ namespace LightInDark.UI.Ability
         /// <summary>排列档位带来的抬高量（与 Nebula 一致 = 0.85）。</summary>
         internal const float ArrangementRaiseY = 0.85f;
 
-        /// <summary>是否启用"小 HUD"布局（配置 `lid.hud.smallGrid`，默认 false ✓）。</summary>
-        internal static bool SmallHud
-        {
-            get
-            {
-                try { return LightInDark.Configuration.ConfigRegistry.Get("lid.hud.smallGrid")?.GetBool() ?? false; }
-                catch { return false; }
-            }
-        }
+        /// <summary>是否启用"小 HUD"布局（设置菜单 → Light 页签 → HUD 紧凑化，默认关 ✓）。</summary>
+        internal static bool SmallHud => HudLayoutSettings.Compact;
 
-        /// <summary>按钮排列档位（配置 `lid.hud.buttonArrangement`：0=默认 1=只抬高左侧 2=全部抬高 ✓）。</summary>
-        internal static int Arrangement
-        {
-            get
-            {
-                try
-                {
-                    int v = LightInDark.Configuration.ConfigRegistry.Get("lid.hud.buttonArrangement")?.GetInt() ?? 0;
-                    if (v < 0) return 0;
-                    return v > 2 ? 2 : v;
-                }
-                catch { return 0; }
-            }
-        }
+        /// <summary>按钮排列档位（设置菜单 → Light 页签 → 按钮排列：0=默认 1=只抬高左侧 2=全部抬高 ✓）。</summary>
+        internal static int Arrangement => HudLayoutSettings.Arrangement;
 
         /// <summary>
         /// 右边距（Nebula `HudContent.EdgeX` 的等价物）。

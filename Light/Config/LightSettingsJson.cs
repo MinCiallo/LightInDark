@@ -67,6 +67,14 @@ public static class LightSettings
         /// 主界面「检查更新」按钮仍然可以手动跑。
         /// </summary>
         public bool AutoCheckUpdate { get; set; } = true;
+        /// <summary>
+        /// HUD 紧凑化：把游戏内按钮阵缩到 0.72 倍并换一套边距公式（默认关 = 与改动前一致）
+        /// </summary>
+        public bool HudCompact { get; set; } = false;
+        /// <summary>
+        /// 按钮排列档位：0=默认 1=只把左侧那一列抬高 2=全部抬高
+        /// </summary>
+        public int HudButtonArrangement { get; set; } = 0;
     }
     public static LightSettingsData LoadSettingData()
     {

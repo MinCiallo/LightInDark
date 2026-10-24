@@ -19,6 +19,8 @@ internal class LightOptionsRegistry
     /// <summary>地图颜色选择器（0 职业 / 1 玩家 / 2 原版 ✓，存 `LightSettings.MapColor` ✓）</summary>
     static LightOptionButton? _mapColor;
     static LightOptionButton? _autoCheckUpdate;
+    static LightOptionButton? _hudCompact;
+    static LightOptionButton? _hudArrangement;
     static LightOptionButton? _handshakeEnabled;
     static LightOptionButton? _handshakeMode;
     static LightOptionButton? _handshakeTimeout;
@@ -104,6 +106,25 @@ internal class LightOptionsRegistry
             "开地图时给地图染色：职业颜色（默认）= 自己职业的颜色；玩家颜色 = 自己选的颜色；" +
             "原版 = 不染色。管理员桌（人数视图）与破坏视图不受影响——它们的颜色本身是信息");
 
+        // HUD 布局（原在模组设置的 lid.hud 块，已迁到本页签）
+        _hudCompact = SettingsTabPatch.AddToggleButton(
+            "HUD 紧凑化", s.HudCompact, on =>
+            {
+                var cur = LightPlugin.LightSettingsData ??= new LightSettings.LightSettingsData();
+                cur.HudCompact = on;
+                LightSettings.Save(cur);
+                LightSettings.ReloadConfig();
+            }, "把游戏内按钮阵整体缩到 0.72 倍并调整边距，小分辨率下按钮不挤/不飘出屏幕");
+
+        _hudArrangement = SettingsTabPatch.AddSelectorButton(
+            "按钮排列", ["默认", "仅左侧抬高", "全部抬高"], s.HudButtonArrangement, idx =>
+            {
+                var cur = LightPlugin.LightSettingsData ??= new LightSettings.LightSettingsData();
+                cur.HudButtonArrangement = idx;
+                LightSettings.Save(cur);
+                LightSettings.ReloadConfig();
+            }, "按钮多时把按钮抬高，避免和原版按钮叠在一起");
+
         // 握手验证（设置块 lid.handshake）
         SettingsTabPatch.AddEmptyButton("握手验证");
         _handshakeEnabled = SettingsTabPatch.AddToggleButton(
@@ -138,6 +159,22 @@ internal class LightOptionsRegistry
         //    一旦注册 GUID，开房会切到 Tags.HostModdedGame(25)，而只有官方服务器
         //    和匹配器实现了它，私服和本地游戏会直接「创建游戏连线区失败」
         SettingsTabPatch.LightTabOpened += SyncFromSettings;
+
+        ApplyHudLayout(s);
+    }
+
+    /// <summary>把 HUD 布局设置写到运行时（HudGrid 每帧排版读取）。</summary>
+    static void ApplyHudLayout(LightSettings.LightSettingsData? s)
+    {
+        try
+        {
+            LightInDark.UI.Ability.HudLayoutSettings.Compact = s?.HudCompact ?? false;
+            LightInDark.UI.Ability.HudLayoutSettings.Arrangement = s?.HudButtonArrangement ?? 0;
+        }
+        catch (Exception ex)
+        {
+            LightLogger.LogWarning($"[LightOptions] 应用 HUD 布局失败：{ex.Message}");
+        }
     }
 
     /// <summary>
@@ -154,11 +191,15 @@ internal class LightOptionsRegistry
         SyncToggle(_showTaskPanelInMeeting, s.ShowTaskPanelInMeeting);
         SyncToggle(_autoCheckUpdate, s.AutoCheckUpdate);
         SyncToggle(_handshakeEnabled, s.EnableHandshake);
+        SyncToggle(_hudCompact, s.HudCompact);
 
         SyncSelector(_cursorIdx, Cursor.Index);
         SyncSelector(_handshakeMode, s.HandshakeMode);
         SyncSelector(_handshakeTimeout, TimeoutToIndex(s.HandshakeTimeoutSeconds));
         SyncSelector(_mapColor, s.MapColor);
+        SyncSelector(_hudArrangement, s.HudButtonArrangement);
+
+        ApplyHudLayout(s);
 
         SettingsTabPatch.Refresh();
     }
