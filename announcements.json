@@ -32,31 +32,13 @@
   "schemaVersion": 1,
   "announcements": [
     {
-      "id": "maintenance-2026-10",
-      "tag": "维护",
-      "title": "联机服务维护通知",
-      "body": "**10 月 20 日 02:00 - 04:00** 进行服务器维护，期间联机功能不可用。\n\n维护内容：\n\n- 更换联机节点\n- 修复房间列表偶发为空的问题\n\n单人游戏不受影响。",
-      "publishedAt": "2026-10-18",
+      "id": "aunnouncements-example-2026-10",
+      "tag": "示例占位公告",
+      "title": "这是一条示例占位的启动器公告",
+      "body": "滚木滚木滚木滚木滚木滚木滚木滚木滚木滚木滚木滚木滚木滚木滚木滚木滚木滚木滚木滚木滚木滚木滚木",
+      "publishedAt": "2026-10-25",
       "pinned": true,
-      "url": ""
-    },
-    {
-      "id": "known-issue-mod-conflict",
-      "tag": "公告",
-      "title": "关于部分 Mod 冲突的说明",
-      "body": "近期有玩家反馈安装某些 Mod 后无法进入房间。\n\n排查结果是 Mod 之间改动了同一处游戏逻辑。建议：\n\n1. 只保留一个改动游戏逻辑的 Mod\n2. 出现异常时先关掉所有 Mod 再逐个打开\n3. 仍然不行就在 GitHub 提 issue，附上日志\n\n这不是启动器的问题，我们不会为此限制 Mod 安装。",
-      "publishedAt": "2026-10-15",
-      "pinned": false,
-      "url": ""
-    },
-    {
-      "id": "roadmap-q4",
-      "tag": "公告",
-      "title": "第四季度更新计划",
-      "body": "接下来会做这几件事：\n\n- 启动器内置 Mod 管理器，支持一键启用/禁用\n- 联机房间列表支持按版本过滤\n- 公告改为服务器下发，不用再更新启动器\n\n排期会根据实际情况调整，以实际发布为准。",
-      "publishedAt": "2026-10-10",
-      "pinned": false,
-      "url": "https://github.com/LightInDark"
+      "url": "https://github.com/Moon-Scar-Studio/LightInDark"
     }
   ]
 }
